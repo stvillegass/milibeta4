@@ -1,0 +1,131 @@
+"use client";
+
+import { useState, useEffect } from "react";
+import { ArrowRight } from "lucide-react";
+import Link from "next/link";
+
+export default function HomePage() {
+  const [categoryImages, setCategoryImages] = useState({
+    nails: "https://images.unsplash.com/photo-1604654894610-df63bc536371?q=80&w=1000&auto=format&fit=crop",
+    lashes: "https://images.unsplash.com/photo-1522337360788-8b13dee7a37e?q=80&w=1000&auto=format&fit=crop",
+  });
+  const [siteConfig, setSiteConfig] = useState({
+    studioName: "Milibeauty",
+    studioSubtitle:
+      "Estudio de lujo especializado en el cuidado y diseño de tus manos y mirada.",
+    nailsTag: "Especialidad",
+    nailsTitle: "Manicure & Pedicure",
+    nailsDescription: "Manicura, pedicura y cuidado de uñas",
+    lashesTag: "Especialidad",
+    lashesTitle: "Cejas y Pestañas",
+    lashesDescription: "Lifting, diseño y realce de mirada",
+    badge1: "Productos Premium",
+    badge2: "Citas Flexibles",
+    badge3: "Higiene Estricta",
+    studioAddress:
+      "Av. Principal Las Mercedes, Edificio Centro Empresarial, Piso 3, Local 302",
+    mapsUrl: "https://www.google.com/maps/search/?api=1&query=Milibeauty+Studio",
+  });
+
+  useEffect(() => {
+    fetch("/api/categories/images")
+      .then((res) => res.json())
+      .then((data) => {
+        if (data?.nails || data?.lashes) {
+          setCategoryImages((prev) => ({
+            nails: data.nails || prev.nails,
+            lashes: data.lashes || prev.lashes,
+          }));
+        }
+      })
+      .catch(console.error);
+
+    fetch("/api/site-config")
+      .then((res) => res.json())
+      .then((data) => {
+        if (data) {
+          setSiteConfig((prev) => ({ ...prev, ...data }));
+        }
+      })
+      .catch(console.error);
+  }, []);
+
+  return (
+    <div className="pt-20 sm:pt-28 min-h-screen px-4 sm:px-6 lg:px-8 max-w-6xl lg:max-w-7xl mx-auto space-y-8">
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6 lg:gap-8">
+        <Link
+          href="/services?category=nails"
+          className="block relative h-72 sm:h-80 lg:h-[420px] rounded-3xl overflow-hidden group transition-all duration-500 border border-brand-outline/20 hover:border-brand-primary/50 hover:shadow-2xl active:scale-[0.99]"
+        >
+          <div className="absolute inset-0 bg-gradient-to-t from-stone-950/90 via-stone-950/35 to-transparent z-10" />
+          <img
+            src={categoryImages.nails}
+            alt="Manicura"
+            className="absolute inset-0 w-full h-full object-cover group-hover:scale-105 transition-transform duration-700 ease-out"
+            referrerPolicy="no-referrer"
+          />
+          <div className="absolute bottom-0 left-0 right-0 p-6 sm:p-8 lg:p-10 z-20 flex justify-between items-end">
+            <div className="min-w-0 flex-1 mr-4">
+              <span className="text-xs font-semibold text-brand-primary uppercase tracking-widest mb-1.5 block">
+                {siteConfig.nailsTag}
+              </span>
+              <h2 className="font-serif text-3xl sm:text-4xl lg:text-5xl font-medium text-white tracking-wide drop-shadow-md">
+                {siteConfig.nailsTitle}
+              </h2>
+              <p className="text-xs sm:text-sm lg:text-base text-white/90 mt-2 font-light hidden sm:block">
+                {siteConfig.nailsDescription}
+              </p>
+            </div>
+            <div className="text-white/90 group-hover:text-white group-hover:translate-x-2 transition-all duration-300 shrink-0 bg-white/15 backdrop-blur-md p-3.5 sm:p-4 rounded-full border border-white/30 shadow-lg">
+              <ArrowRight className="w-6 h-6 stroke-[2]" />
+            </div>
+          </div>
+        </Link>
+
+        <Link
+          href="/services?category=lashes"
+          className="block relative h-72 sm:h-80 lg:h-[420px] rounded-3xl overflow-hidden group transition-all duration-500 border border-brand-outline/20 hover:border-brand-primary/50 hover:shadow-2xl active:scale-[0.99]"
+        >
+          <div className="absolute inset-0 bg-gradient-to-t from-stone-950/90 via-stone-950/35 to-transparent z-10" />
+          <img
+            src={categoryImages.lashes}
+            alt="Cejas y Pestañas"
+            className="absolute inset-0 w-full h-full object-cover group-hover:scale-105 transition-transform duration-700 ease-out"
+            referrerPolicy="no-referrer"
+          />
+          <div className="absolute bottom-0 left-0 right-0 p-6 sm:p-8 lg:p-10 z-20 flex justify-between items-end">
+            <div className="min-w-0 flex-1 mr-4">
+              <span className="text-xs font-semibold text-brand-primary uppercase tracking-widest mb-1.5 block">
+                {siteConfig.lashesTag}
+              </span>
+              <h2 className="font-serif text-3xl sm:text-4xl lg:text-5xl font-medium text-white tracking-wide drop-shadow-md">
+                {siteConfig.lashesTitle}
+              </h2>
+              <p className="text-xs sm:text-sm lg:text-base text-white/90 mt-2 font-light hidden sm:block">
+                {siteConfig.lashesDescription}
+              </p>
+            </div>
+            <div className="text-white/90 group-hover:text-white group-hover:translate-x-2 transition-all duration-300 shrink-0 bg-white/15 backdrop-blur-md p-3.5 sm:p-4 rounded-full border border-white/30 shadow-lg">
+              <ArrowRight className="w-6 h-6 stroke-[2]" />
+            </div>
+          </div>
+        </Link>
+      </div>
+
+      <footer className="text-center py-10 text-xs text-brand-tertiary/40 tracking-wider">
+        <p>© 2026 MILIBEAUTY LUXURY STUDIO</p>
+        <div className="flex justify-center gap-6 mt-3 text-brand-tertiary/60 font-light">
+          <a href="#" className="hover:text-brand-primary transition-colors">
+            Privacidad
+          </a>
+          <a href="#" className="hover:text-brand-primary transition-colors">
+            Términos
+          </a>
+          <a href="#" className="hover:text-brand-primary transition-colors">
+            Contacto
+          </a>
+        </div>
+      </footer>
+    </div>
+  );
+}
