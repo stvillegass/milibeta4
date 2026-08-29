@@ -13,11 +13,47 @@ function getAuth() {
   if (!rawPrivateKey) missing.push("GOOGLE_PRIVATE_KEY");
   if (!calendarId) missing.push("GOOGLE_CALENDAR_ID");
 
+  console.log("🟡 [googleCalendar.getAuth] Credenciales presentes:", {
+    clientEmail: clientEmail ? `${clientEmail.slice(0, 12)}...` : "(vacío)",
+    privateKeyLen: rawPrivateKey ? rawPrivateKey.length : "(vacío)",
+    calendarId: calendarId ? `${calendarId.slice(0, 12)}...` : "(vacío)",
+    missing,
+  });
+
+  if (rawPrivateKey) {
+    console.log("🟡 [googleCalendar.getAuth] GOOGLE_PRIVATE_KEY raw:", {
+      beginsWith: rawPrivateKey.slice(0, 26),
+      endsWith: rawPrivateKey.slice(-27),
+      hasLiteralBackslashN: rawPrivateKey.includes("\\n"),
+      hasRealNewline: rawPrivateKey.includes("\n"),
+      hasCR: rawPrivateKey.includes("\r"),
+      flagCount: (rawPrivateKey.match(/-----BEGIN PRIVATE KEY-----/g) || []).length,
+    });
+  }
+
   if (missing.length > 0) {
     throw new Error(`Google Calendar credentials not configured. Missing: ${missing.join(", ")}`);
   }
 
-  const privateKey = rawPrivateKey!.replace(/\\n/g, "\n");
+  // Reemplaza saltos de línea literales "\\n" por saltos reales "\n" (formato usado en Vercel),
+  // limpia retorno de carro (CRLF) de la lectura local, y elimina líneas vacías corruptas
+  // (p. ej. una línea en blanco tras -----BEGIN PRIVATE KEY----- que hace fallar el decoder de OpenSSL 3).
+  const privateKey = rawPrivateKey!
+    .replace(/\\n/g, "\n")
+    .replace(/\r/g, "")
+    .split("\n")
+    .filter((line) => line.trim().length > 0)
+    .join("\n")
+    .trim();
+
+  console.log("🟡 [googleCalendar.getAuth] GOOGLE_PRIVATE_KEY transformada:", {
+    beginsWith: privateKey.slice(0, 26),
+    endsWith: privateKey.slice(-27),
+    length: privateKey.length,
+    firstLineOnly: privateKey.split("\n")[0],
+    lineCount: privateKey.split("\n").length,
+    lastLineOnly: privateKey.split("\n").slice(-1)[0],
+  });
 
   const auth = new google.auth.JWT({
     email: clientEmail!,
@@ -57,18 +93,41 @@ export async function listCalendarEvents(timeMin?: string, maxResults = 100): Pr
 export async function createCalendarEvent(data: CalendarEventData): Promise<string> {
   const { auth, calendarId } = getAuth();
   const calendar = google.calendar({ version: "v3", auth });
-  const res = await calendar.events.insert({
-    calendarId,
-    requestBody: {
-      summary: data.summary,
-      description: data.description,
-      start: { dateTime: data.startTime },
-      end: { dateTime: data.endTime },
-    },
+  console.log("🟡 [googleCalendar.createCalendarEvent] Creando evento:", {
+    calendarId: `${calendarId.slice(0, 12)}...`,
+    summary: data.summary,
+    startTime: data.startTime,
+    endTime: data.endTime,
   });
-  const eventId = res.data.id;
-  if (!eventId) throw new Error("Google Calendar returned no event id.");
-  return eventId;
+  try {
+    const res = await calendar.events.insert({
+      calendarId,
+      requestBody: {
+        summary: data.summary,
+        description: data.description,
+        start: { dateTime: data.startTime },
+        end: { dateTime: data.endTime },
+      },
+    });
+    const eventId = res.data.id;
+    console.log(`✅ [googleCalendar.createCalendarEvent] Evento creado con éxito. eventId=${eventId}`);
+    if (!eventId) throw new Error("Google Calendar returned no event id.");
+    return eventId;
+  } catch (error: any) {
+    // Extraer el detalle del error de la API de Google (invalid_grant, notFound, unauthorized, etc.)
+    const code = error?.code ?? error?.response?.data?.error?.code ?? "unknown";
+    const reason =
+      error?.response?.data?.error?.errors?.[0]?.reason ??
+      error?.response?.data?.error?.message ??
+      error?.message ??
+      String(error);
+    const apiMessage = error?.response?.data?.error?.message ?? undefined;
+    console.error(
+      "❌ [googleCalendar.createCalendarEvent] Error creando evento en Google Calendar:",
+      { code, reason, apiMessage, fullError: error }
+    );
+    throw new Error(`Google Calendar API error (code=${code}): ${reason}`);
+  }
 }
 
 export async function updateCalendarEvent(eventId: string, data: CalendarEventData): Promise<void> {

@@ -23,6 +23,7 @@ CREATE TABLE public.service_options (
     name TEXT NOT NULL,
     price NUMERIC(10, 2) NOT NULL,
     duration_minutes INTEGER NOT NULL,
+    description TEXT, -- Descripción individual de qué incluye cada modalidad
     created_at TIMESTAMPTZ DEFAULT NOW()
 );
 

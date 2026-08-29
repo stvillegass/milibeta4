@@ -1,0 +1,34 @@
+@import "tailwindcss";
+
+@theme {
+  --font-sans: 'Plus Jakarta Sans', system-ui, -apple-system, sans-serif;
+  --font-serif: 'Playfair Display', Georgia, serif;
+  
+  --color-brand-primary: #C5A065;
+  --color-brand-primary-light: #D8B47A;
+  --color-brand-secondary: #e4e4e7;
+  --color-brand-secondary-dark: #d4d4d8;
+  --color-brand-tertiary: #1C1917;
+  --color-brand-outline: #d4d4d8;
+}
+
+@layer base {
+  body {
+    @apply bg-brand-secondary text-brand-tertiary antialiased font-sans selection:bg-brand-primary/20 selection:text-brand-tertiary;
+  }
+  
+  h1, h2, h3, h4, h5, h6 {
+    @apply font-serif;
+  }
+}
+
+/* Custom scrollbar and utilities for luxury feel */
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+.no-scrollbar {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+
+

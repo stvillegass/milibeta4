@@ -1,32 +1,95 @@
 @import "tailwindcss";
 
 @theme {
-  --font-sans: 'Plus Jakarta Sans', system-ui, -apple-system, sans-serif;
-  --font-serif: 'Playfair Display', Georgia, serif;
+  --font-sans: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, 'SF Pro Display', 'Segoe UI', Roboto, sans-serif;
+  --font-serif: 'Playfair Display', Georgia, Cambria, serif;
   
   --color-brand-primary: #C5A065;
   --color-brand-primary-light: #D8B47A;
-  --color-brand-secondary: #e4e4e7;
-  --color-brand-secondary-dark: #d4d4d8;
-  --color-brand-tertiary: #1C1917;
-  --color-brand-outline: #d4d4d8;
+  --color-brand-primary-dark: #A98348;
+  --color-brand-secondary: #f4f4f5;
+  --color-brand-secondary-dark: #e4e4e7;
+  --color-brand-tertiary: #18181b;
+  --color-brand-outline: #e4e4e7;
 }
 
 @layer base {
+  * {
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  html {
+    scroll-behavior: smooth;
+    text-rendering: optimizeLegibility;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+
   body {
-    @apply bg-brand-secondary text-brand-tertiary antialiased font-sans selection:bg-brand-primary/20 selection:text-brand-tertiary;
+    @apply bg-brand-secondary text-brand-tertiary antialiased font-sans selection:bg-brand-primary/25 selection:text-brand-tertiary;
+    font-feature-settings: "cv02", "cv03", "cv04", "cv11";
   }
   
   h1, h2, h3, h4, h5, h6 {
     @apply font-serif;
+    letter-spacing: -0.02em;
   }
 }
 
-/* Custom scrollbar and utilities for luxury feel */
+/* ─── LUXURY ULTRA-GLASSMORPHISM & DEPTH TOKENS ─── */
+.glass-capsule {
+  background: rgba(255, 255, 255, 0.72);
+  backdrop-filter: blur(28px) saturate(190%);
+  -webkit-backdrop-filter: blur(28px) saturate(190%);
+  border: 1px solid rgba(255, 255, 255, 0.65);
+  box-shadow: 
+    0 20px 40px -12px rgba(28, 25, 23, 0.08),
+    0 8px 16px -4px rgba(28, 25, 23, 0.04),
+    inset 0 1.5px 1.5px 0 rgba(255, 255, 255, 0.85);
+}
+
+.glass-capsule-dark {
+  background: rgba(24, 24, 27, 0.82);
+  backdrop-filter: blur(28px) saturate(190%);
+  -webkit-backdrop-filter: blur(28px) saturate(190%);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  box-shadow: 
+    0 24px 48px -12px rgba(0, 0, 0, 0.35),
+    0 8px 16px -4px rgba(0, 0, 0, 0.25),
+    inset 0 1px 1px 0 rgba(255, 255, 255, 0.2);
+}
+
+.glass-card {
+  background: rgba(255, 255, 255, 0.85);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border: 1px solid rgba(255, 255, 255, 0.7);
+  box-shadow: 
+    0 12px 30px -8px rgba(0, 0, 0, 0.05),
+    0 4px 10px -2px rgba(0, 0, 0, 0.02),
+    inset 0 1px 1px 0 rgba(255, 255, 255, 0.9);
+}
+
+.gold-gradient-pill {
+  background: linear-gradient(135deg, #D4AF37 0%, #C5A065 50%, #B38E54 100%);
+  box-shadow: 
+    0 4px 14px 0 rgba(197, 160, 101, 0.38),
+    inset 0 1px 1.5px 0 rgba(255, 255, 255, 0.45);
+}
+
+/* Custom scrollbars */
 .no-scrollbar::-webkit-scrollbar {
   display: none;
 }
 .no-scrollbar {
   -ms-overflow-style: none;
   scrollbar-width: none;
+}
+
+/* GPU performance acceleration */
+.gpu-layer {
+  transform: translateZ(0);
+  will-change: transform, opacity;
+  backface-visibility: hidden;
+  perspective: 1000px;
 }

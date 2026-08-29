@@ -23,5 +23,5 @@
     }
   },
   "include": ["next-env.d.ts", "global.d.ts", "app/**/*.ts", "app/**/*.tsx", "components/**/*.ts", "components/**/*.tsx", "lib/**/*.ts", "types.ts", ".next/types/**/*.ts"],
-  "exclude": ["node_modules"]
+  "exclude": ["node_modules", "src", "server.ts", "vite.config.ts", "index.html", "sw.js"]
 }

@@ -1,23 +1,15 @@
-"use client";
-
-import { useState, useEffect } from "react";
-import {
-  Sparkles,
-  Heart,
-  X,
-  Loader2,
-  RefreshCw,
-  AlertCircle,
-  Plus,
-  Trash2,
-} from "lucide-react";
-import ReservationModal from "@/components/ReservationModal";
-import { supabase } from "@/lib/supabase";
-import { useAuth } from "@/lib/AuthProvider";
+import { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
+import { 
+  Sparkles, Camera, Eye, Heart, 
+  MapPin, Clock, X, Share2, ChevronRight, SlidersHorizontal, Plus, Trash2, Loader2, RefreshCw, AlertCircle
+} from 'lucide-react';
+import ReservationModal from './ReservationModal';
+import { supabase } from '../lib/supabase';
 
 interface LookbookItem {
   id: string;
-  category: "nails" | "lashes" | "studio" | "transformation";
+  category: 'nails' | 'lashes' | 'studio' | 'transformation';
   title: string;
   subtitle: string;
   imageUrl: string;
@@ -29,33 +21,48 @@ interface LookbookItem {
   likes_count?: number;
 }
 
-export default function BookingPage() {
+export default function Booking() {
+  const navigate = useNavigate();
   const [items, setItems] = useState<LookbookItem[]>([]);
-  const [activeFilter, setActiveFilter] = useState<"all" | "nails" | "lashes" | "studio">("all");
+  const [activeFilter, setActiveFilter] = useState<'all' | 'nails' | 'lashes' | 'studio'>('all');
   const [selectedItem, setSelectedItem] = useState<LookbookItem | null>(null);
   const [likedItems, setLikedItems] = useState<Record<string, boolean>>({});
   const [likesCount, setLikesCount] = useState<Record<string, number>>({});
   const [bookingServiceId, setBookingServiceId] = useState<string | null>(null);
-  const { isAdmin } = useAuth();
+  const [isAdmin, setIsAdmin] = useState(false);
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
-  const [addTitle, setAddTitle] = useState("");
-  const [addCategory, setAddCategory] = useState<"nails" | "lashes" | "studio" | "transformation">("nails");
-  const [addImageUrl, setAddImageUrl] = useState("");
+  const [addTitle, setAddTitle] = useState('');
+  const [addCategory, setAddCategory] = useState<'nails' | 'lashes' | 'studio' | 'transformation'>('nails');
+  const [addImageUrl, setAddImageUrl] = useState('');
   const [addImageFile, setAddImageFile] = useState<File | null>(null);
   const [isUploading, setIsUploading] = useState(false);
   const [isDeletingId, setIsDeletingId] = useState<string | null>(null);
   const [itemsError, setItemsError] = useState<string | null>(null);
 
+  // Verificar si el usuario está autenticado (admin) para mostrar controles de gestión
+  useEffect(() => {
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      setIsAdmin(!!session);
+    });
+
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+      setIsAdmin(!!session);
+    });
+
+    return () => subscription?.unsubscribe();
+  }, []);
+
+  // Cargar items dinámicamente desde Supabase (lookbook_items)
   const loadItems = async () => {
     try {
       const { data, error } = await supabase
-        .from("lookbook_items")
-        .select("*")
-        .order("created_at", { ascending: false });
+        .from('lookbook_items')
+        .select('*')
+        .order('created_at', { ascending: false });
 
       if (error) {
-        console.error("Error fetching lookbook:", error);
-        setItemsError("No se pudieron cargar los elementos del lookbook.");
+        console.error('Error fetching lookbook:', error);
+        setItemsError('No se pudieron cargar los elementos del lookbook.');
         return;
       }
 
@@ -65,21 +72,21 @@ export default function BookingPage() {
         category: row.category,
         subtitle: row.title,
         imageUrl: row.image_url,
-        tag: row.category === "nails" ? "Manicure" : row.category === "lashes" ? "Cejas y Pestañas" : "El Studio",
+        tag: row.category === 'nails' ? 'Manicure' : row.category === 'lashes' ? 'Cejas y Pestañas' : 'El Studio',
         likes_count: row.likes_count || 0,
       }));
 
       setItems(mapped);
 
       const initialLikes: Record<string, number> = {};
-      mapped.forEach((item) => {
+      mapped.forEach(item => {
         initialLikes[item.id] = item.likes_count || 0;
       });
       setLikesCount(initialLikes);
       setItemsError(null);
     } catch (err) {
-      console.error("Error loading lookbook:", err);
-      setItemsError("No se pudieron cargar los elementos del lookbook.");
+      console.error('Error loading lookbook:', err);
+      setItemsError('No se pudieron cargar los elementos del lookbook.');
     }
   };
 
@@ -87,112 +94,90 @@ export default function BookingPage() {
     loadItems();
   }, []);
 
+  // Resolve a real Supabase service ID (UUID) for a lookbook item.
+  // Los lookbook items vienen del seed en memoria del servidor (IDs 's1','s2'...),
+  // pero el ReservationModal consulta la tabla `services` de Supabase (UUIDs reales).
   const resolveServiceIdForBooking = async (item: LookbookItem): Promise<string | null> => {
     try {
       const { data, error } = await supabase
-        .from("services")
-        .select("id, category, name")
-        .order("order_index", { ascending: true });
+        .from('services')
+        .select('id, category, name')
+        .order('order_index', { ascending: true });
 
       if (error || !data || data.length === 0) return null;
 
-      if (item.serviceId && data.some((s) => s.id === item.serviceId)) {
+      // Si el item ya trae un UUID real de Supabase, úsalo directamente.
+      if (item.serviceId && data.some(s => s.id === item.serviceId)) {
         return item.serviceId;
       }
 
-      if (item.category === "nails" || item.category === "lashes") {
-        const match = data.find((s) => s.category === item.category);
+      // Preferir un servicio de la misma categoría (nails/lashes).
+      if (item.category === 'nails' || item.category === 'lashes') {
+        const match = data.find(s => s.category === item.category);
         if (match) return match.id;
       }
 
+      // Fallback: primer servicio disponible.
       return data[0].id;
     } catch (err) {
-      console.error("Error resolving service for booking:", err);
+      console.error('Error resolving service for booking:', err);
       return null;
     }
   };
 
   const handleToggleLike = (id: string, e: React.MouseEvent) => {
     e.stopPropagation();
-    setLikedItems((prev) => {
+    setLikedItems(prev => {
       const isLiked = !prev[id];
-      setLikesCount((lc) => ({
+      setLikesCount(lc => ({
         ...lc,
-        [id]: (lc[id] || 35) + (isLiked ? 1 : -1),
+        [id]: (lc[id] || 35) + (isLiked ? 1 : -1)
       }));
       return { ...prev, [id]: isLiked };
     });
   };
 
+  // Eliminar un elemento del lookbook (solo admin)
   const handleDeleteItem = async (id: string) => {
-    if (!confirm("¿Eliminar este elemento del lookbook?")) return;
+    if (!confirm('¿Eliminar este elemento del lookbook?')) return;
     setIsDeletingId(id);
     try {
-      const { error } = await supabase.from("lookbook_items").delete().eq("id", id);
+      const { error } = await supabase.from('lookbook_items').delete().eq('id', id);
       if (error) throw error;
-      setItems((prev) => prev.filter((i) => i.id !== id));
+      setItems(prev => prev.filter(i => i.id !== id));
     } catch (err: any) {
-      console.error("Error deleting lookbook item:", err);
-      alert("Error al eliminar el elemento: " + (err?.message || "Error desconocido"));
+      console.error('Error deleting lookbook item:', err);
+      alert('Error al eliminar el elemento: ' + (err?.message || 'Error desconocido'));
     } finally {
       setIsDeletingId(null);
     }
   };
 
+  // Subir una imagen al Storage de Supabase y devolver la URL pública
   const uploadImage = async (file: File): Promise<string | null> => {
-    const ext = file.name.split(".").pop() || "png";
+    const ext = file.name.split('.').pop() || 'png';
     const fileName = `lookbook/${Date.now()}-${Math.random().toString(36).slice(2, 8)}.${ext}`;
-    const BUCKET = "lookbook-images";
-
-    // Primer intento de subida
-    let { error } = await supabase.storage.from(BUCKET).upload(fileName, file, {
-      cacheControl: "3600",
+    const { error } = await supabase.storage.from('lookbook-images').upload(fileName, file, {
+      cacheControl: '3600',
       upsert: false,
     });
-
-    // Si el bucket no existe, intentar crearlo y reintentar
-    if (error && (error.message?.toLowerCase().includes("bucket not found") || (error as any)?.statusCode === 404 || (error as any)?.error === "Bucket not found")) {
-      console.warn(`[Lookbook] Bucket "${BUCKET}" no encontrado. Intentando crear...`);
-      const { error: bucketError } = await supabase.storage.createBucket(BUCKET, {
-        public: true,
-        fileSizeLimit: 5242880, // 5 MB
-        allowedMimeTypes: ["image/jpeg", "image/png", "image/webp", "image/gif", "image/avif"],
-      });
-
-      if (bucketError && !bucketError.message?.toLowerCase().includes("already exists")) {
-        console.error(`[Lookbook] No se pudo crear el bucket "${BUCKET}":`, bucketError);
-        console.error(
-          `ℹ️ Solución: Ejecuta el script supabase/create_lookbook_bucket.sql en tu panel de Supabase.`
-        );
-        return null;
-      }
-
-      // Reintentar la subida tras crear el bucket
-      const retryResult = await supabase.storage.from(BUCKET).upload(fileName, file, {
-        cacheControl: "3600",
-        upsert: false,
-      });
-      error = retryResult.error;
-    }
-
     if (error) {
-      console.error("[Lookbook] Error al subir imagen:", error.message);
+      console.error('Upload error:', error);
       return null;
     }
-
-    const { data: publicUrlData } = supabase.storage.from(BUCKET).getPublicUrl(fileName);
+    const { data: publicUrlData } = supabase.storage.from('lookbook-images').getPublicUrl(fileName);
     return publicUrlData?.publicUrl || null;
   };
 
-
+  // Guardar un nuevo elemento (título, categoría, imagen por archivo o URL)
   const handleAddItem = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!addTitle.trim()) {
-      alert("Por favor ingresa un título.");
+      alert('Por favor ingresa un título.');
       return;
     }
     if (!addImageUrl.trim() && !addImageFile) {
-      alert("Por favor agrega una imagen (archivo o URL).");
+      alert('Por favor agrega una imagen (archivo o URL).');
       return;
     }
 
@@ -208,7 +193,7 @@ export default function BookingPage() {
         finalImageUrl = uploaded;
       }
 
-      const { error } = await supabase.from("lookbook_items").insert({
+      const { error } = await supabase.from('lookbook_items').insert({
         title: addTitle.trim(),
         category: addCategory,
         image_url: finalImageUrl,
@@ -216,33 +201,37 @@ export default function BookingPage() {
       });
       if (error) throw error;
 
-      setAddTitle("");
-      setAddCategory("nails");
-      setAddImageUrl("");
+      // Reset modal fields and refresh
+      setAddTitle('');
+      setAddCategory('nails');
+      setAddImageUrl('');
       setAddImageFile(null);
       setIsAddModalOpen(false);
       await loadItems();
     } catch (err: any) {
-      console.error("Error adding lookbook item:", err);
-      alert("Error al agregar el elemento: " + (err?.message || "Error desconocido"));
+      console.error('Error adding lookbook item:', err);
+      alert('Error al agregar el elemento: ' + (err?.message || 'Error desconocido'));
     } finally {
       setIsUploading(false);
     }
   };
 
-  const filteredItems = items.filter((item) => {
-    if (activeFilter === "all") return true;
+  const filteredItems = items.filter(item => {
+    if (activeFilter === 'all') return true;
     return item.category === activeFilter;
   });
 
   return (
     <div className="pt-24 sm:pt-28 px-4 sm:px-6 lg:px-8 pb-20 min-h-screen max-w-6xl lg:max-w-7xl mx-auto space-y-8">
+      
+      {/* Header / Brand Intro */}
       <div className="text-center pt-2">
         <span className="text-xs font-semibold uppercase tracking-[0.2em] text-brand-primary bg-brand-primary/10 px-4 py-1.5 rounded-full inline-flex items-center gap-1.5 mb-2 border border-brand-primary/20">
           <Sparkles className="w-4 h-4 stroke-[1.5]" />
           Book de Mili
         </span>
 
+        {/* Admin: Add item + actions */}
         {isAdmin && (
           <div className="mt-4 flex flex-wrap items-center justify-center gap-2">
             <button
@@ -270,51 +259,53 @@ export default function BookingPage() {
         )}
       </div>
 
+      {/* Category Filter Pills (Minimalist Tabs) */}
       <div className="flex gap-2 overflow-x-auto pb-1.5 justify-start sm:justify-center no-scrollbar border-b border-brand-outline/10">
         <button
-          onClick={() => setActiveFilter("all")}
+          onClick={() => setActiveFilter('all')}
           className={`px-4 py-2 rounded-full text-xs font-medium tracking-wide whitespace-nowrap transition-all duration-200 ${
-            activeFilter === "all"
-              ? "bg-brand-tertiary text-white shadow-2xs"
-              : "bg-white/80 text-brand-tertiary/60 border border-brand-outline/10 hover:text-brand-tertiary hover:border-brand-outline/30"
+            activeFilter === 'all'
+              ? 'bg-brand-tertiary text-white shadow-2xs'
+              : 'bg-white/80 text-brand-tertiary/60 border border-brand-outline/10 hover:text-brand-tertiary hover:border-brand-outline/30'
           }`}
         >
           Todos ({items.length})
         </button>
         <button
-          onClick={() => setActiveFilter("nails")}
+          onClick={() => setActiveFilter('nails')}
           className={`px-4 py-2 rounded-full text-xs font-medium tracking-wide whitespace-nowrap transition-all duration-200 ${
-            activeFilter === "nails"
-              ? "bg-brand-tertiary text-white shadow-2xs"
-              : "bg-white/80 text-brand-tertiary/60 border border-brand-outline/10 hover:text-brand-tertiary hover:border-brand-outline/30"
+            activeFilter === 'nails'
+              ? 'bg-brand-tertiary text-white shadow-2xs'
+              : 'bg-white/80 text-brand-tertiary/60 border border-brand-outline/10 hover:text-brand-tertiary hover:border-brand-outline/30'
           }`}
         >
           Manicure
         </button>
         <button
-          onClick={() => setActiveFilter("lashes")}
+          onClick={() => setActiveFilter('lashes')}
           className={`px-4 py-2 rounded-full text-xs font-medium tracking-wide whitespace-nowrap transition-all duration-200 ${
-            activeFilter === "lashes"
-              ? "bg-brand-tertiary text-white shadow-2xs"
-              : "bg-white/80 text-brand-tertiary/60 border border-brand-outline/10 hover:text-brand-tertiary hover:border-brand-outline/30"
+            activeFilter === 'lashes'
+              ? 'bg-brand-tertiary text-white shadow-2xs'
+              : 'bg-white/80 text-brand-tertiary/60 border border-brand-outline/10 hover:text-brand-tertiary hover:border-brand-outline/30'
           }`}
         >
           Cejas & Pestañas
         </button>
         <button
-          onClick={() => setActiveFilter("studio")}
+          onClick={() => setActiveFilter('studio')}
           className={`px-4 py-2 rounded-full text-xs font-medium tracking-wide whitespace-nowrap transition-all duration-200 ${
-            activeFilter === "studio"
-              ? "bg-brand-tertiary text-white shadow-2xs"
-              : "bg-white/80 text-brand-tertiary/60 border border-brand-outline/10 hover:text-brand-tertiary hover:border-brand-outline/30"
+            activeFilter === 'studio'
+              ? 'bg-brand-tertiary text-white shadow-2xs'
+              : 'bg-white/80 text-brand-tertiary/60 border border-brand-outline/10 hover:text-brand-tertiary hover:border-brand-outline/30'
           }`}
         >
           El Studio
         </button>
       </div>
 
+      {/* Lookbook Gallery Grid - Multi-column Responsive Grid */}
       <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3.5 sm:gap-5">
-        {filteredItems.map((item) => {
+        {filteredItems.map(item => {
           const isLiked = likedItems[item.id];
           const count = likesCount[item.id] || 35;
 
@@ -331,18 +322,26 @@ export default function BookingPage() {
                   className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500 ease-out"
                   referrerPolicy="no-referrer"
                 />
+                
+                {/* Subtle Overlay Gradient */}
                 <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-black/0 to-black/20 opacity-40 group-hover:opacity-75 transition-opacity duration-300" />
+
+                {/* Top Category Tag */}
                 <div className="absolute top-2 left-2 z-10">
                   <span className="bg-white/85 backdrop-blur-md text-brand-tertiary text-[9px] font-medium uppercase tracking-wider px-2 py-0.5 rounded-md shadow-2xs">
                     {item.tag}
                   </span>
                 </div>
+
+                {/* Like Button */}
                 <button
                   onClick={(e) => handleToggleLike(item.id, e)}
                   className="absolute top-2 right-2 z-10 p-1.5 rounded-full bg-white/80 backdrop-blur-md text-brand-tertiary hover:bg-white transition-all shadow-2xs active:scale-90"
                 >
-                  <Heart className={`w-3 h-3 transition-colors ${isLiked ? "fill-rose-500 text-rose-500" : "text-stone-600 stroke-[1.5]"}`} />
+                  <Heart className={`w-3 h-3 transition-colors ${isLiked ? 'fill-rose-500 text-rose-500' : 'text-stone-600 stroke-[1.5]'}`} />
                 </button>
+
+                {/* Admin: Delete Button (discreto, solo admin) */}
                 {isAdmin && (
                   <button
                     onClick={(e) => {
@@ -360,6 +359,8 @@ export default function BookingPage() {
                     )}
                   </button>
                 )}
+
+                {/* Floating Bottom Info inside Image Tile */}
                 <div className="absolute bottom-2 left-2 right-2 z-10 text-white flex items-end justify-between gap-1">
                   <div className="min-w-0 pr-1">
                     <h3 className="font-serif italic text-xs sm:text-sm font-normal truncate leading-tight drop-shadow-xs">
@@ -377,9 +378,14 @@ export default function BookingPage() {
         })}
       </div>
 
+
+
+      {/* FULL-SCREEN POPUP MODAL FOR ITEM DETAILS */}
       {selectedItem && (
         <div className="fixed inset-0 z-50 bg-stone-950/70 backdrop-blur-sm flex items-end sm:items-center justify-center p-0 sm:p-4 animate-in fade-in">
           <div className="bg-white w-full max-w-lg rounded-t-3xl sm:rounded-3xl overflow-hidden border border-brand-outline/20 max-h-[90vh] flex flex-col">
+            
+            {/* Modal Image Header */}
             <div className="relative h-64 sm:h-72 bg-stone-950 shrink-0">
               <img
                 src={selectedItem.imageUrl}
@@ -388,19 +394,27 @@ export default function BookingPage() {
                 referrerPolicy="no-referrer"
               />
               <div className="absolute inset-0 bg-gradient-to-t from-stone-950/80 via-transparent to-stone-950/30" />
+
+              {/* Close Button */}
               <button
                 onClick={() => setSelectedItem(null)}
                 className="absolute top-4 right-4 p-2.5 rounded-full bg-black/50 text-white hover:bg-black/70 transition-colors backdrop-blur-md"
               >
                 <X className="w-4 h-4 stroke-[1.5]" />
               </button>
+
+              {/* Tag */}
               <div className="absolute top-4 left-4 flex items-center gap-2">
                 <span className="bg-white/90 backdrop-blur-md text-brand-tertiary text-xs font-semibold uppercase tracking-wider px-3 py-1 rounded-full">
                   {selectedItem.tag}
                 </span>
               </div>
+
+              {/* Title inside header */}
               <div className="absolute bottom-4 left-4 right-4 text-white">
-                <h3 className="font-serif italic text-2xl font-normal leading-tight">{selectedItem.title}</h3>
+                <h3 className="font-serif italic text-2xl font-normal leading-tight">
+                  {selectedItem.title}
+                </h3>
                 {selectedItem.duration && (
                   <span className="text-xs text-white/75 font-light block mt-1">
                     ⏱️ Duración estimada: {selectedItem.duration}
@@ -409,12 +423,15 @@ export default function BookingPage() {
               </div>
             </div>
 
+            {/* Modal Body */}
             <div className="p-6 overflow-y-auto space-y-4 text-brand-tertiary flex-1">
               <div>
                 <h4 className="text-[10px] font-semibold uppercase tracking-[0.18em] text-brand-primary mb-1">
                   Detalles del Trabajo
                 </h4>
-                <p className="text-sm font-light text-brand-tertiary leading-relaxed">{selectedItem.subtitle}</p>
+                <p className="text-sm font-light text-brand-tertiary leading-relaxed">
+                  {selectedItem.subtitle}
+                </p>
               </div>
 
               {selectedItem.details && (
@@ -422,10 +439,13 @@ export default function BookingPage() {
                   <span className="font-semibold text-[10px] uppercase tracking-wider text-brand-tertiary block">
                     ¿Qué incluye este procedimiento?
                   </span>
-                  <p className="leading-relaxed font-light">{selectedItem.details}</p>
+                  <p className="leading-relaxed font-light">
+                    {selectedItem.details}
+                  </p>
                 </div>
               )}
 
+              {/* Call to action */}
               <div className="pt-2 space-y-2">
                 <button
                   onClick={async () => {
@@ -442,6 +462,7 @@ export default function BookingPage() {
                   <Sparkles className="w-4 h-4 stroke-[1.5]" />
                   <span>Reservar Servicio Similar</span>
                 </button>
+
                 <button
                   onClick={() => setSelectedItem(null)}
                   className="w-full bg-brand-secondary text-brand-tertiary py-3 rounded-2xl font-medium text-xs uppercase tracking-widest hover:bg-brand-secondary-dark transition-colors"
@@ -454,6 +475,7 @@ export default function BookingPage() {
         </div>
       )}
 
+      {/* RESERVATION MODAL */}
       {bookingServiceId && (
         <ReservationModal
           isOpen={true}
@@ -462,9 +484,11 @@ export default function BookingPage() {
         />
       )}
 
+      {/* ADMIN: ADD ITEM MODAL */}
       {isAddModalOpen && (
         <div className="fixed inset-0 z-50 bg-stone-950/70 backdrop-blur-sm flex items-center justify-center p-4 animate-in fade-in">
           <div className="bg-white w-full max-w-md rounded-3xl overflow-hidden border border-brand-outline/20 max-h-[90vh] flex flex-col">
+            {/* Header */}
             <div className="flex items-center justify-between border-b border-brand-outline/10 p-4 sm:p-5">
               <h3 className="font-serif italic text-xl text-brand-tertiary">Agregar elemento al Lookbook</h3>
               <button
@@ -475,6 +499,7 @@ export default function BookingPage() {
               </button>
             </div>
 
+            {/* Form */}
             <form onSubmit={handleAddItem} className="p-5 space-y-4 overflow-y-auto">
               <div>
                 <label className="block text-[11px] font-bold text-brand-tertiary/60 uppercase mb-1.5">Título *</label>
@@ -483,7 +508,7 @@ export default function BookingPage() {
                   required
                   placeholder="Ej. Manicura Rusa & Rubber Base"
                   value={addTitle}
-                  onChange={(e) => setAddTitle(e.target.value)}
+                  onChange={e => setAddTitle(e.target.value)}
                   className="w-full bg-brand-secondary/40 p-3 rounded-xl border border-brand-outline/20 text-sm outline-none focus:border-brand-primary"
                 />
               </div>
@@ -491,18 +516,18 @@ export default function BookingPage() {
               <div>
                 <label className="block text-[11px] font-bold text-brand-tertiary/60 uppercase mb-1.5">Categoría *</label>
                 <div className="grid grid-cols-3 gap-2">
-                  {(["nails", "lashes", "studio"] as const).map((cat) => (
+                  {(['nails', 'lashes', 'studio'] as const).map(cat => (
                     <button
                       key={cat}
                       type="button"
                       onClick={() => setAddCategory(cat)}
                       className={`py-2.5 px-2 rounded-xl border text-xs font-bold uppercase tracking-wider transition-all ${
                         addCategory === cat
-                          ? "bg-brand-primary text-white border-brand-primary"
-                          : "bg-white text-brand-tertiary/70 border-brand-outline/20 hover:border-brand-primary/40"
+                          ? 'bg-brand-primary text-white border-brand-primary'
+                          : 'bg-white text-brand-tertiary/70 border-brand-outline/20 hover:border-brand-primary/40'
                       }`}
                     >
-                      {cat === "nails" ? "Uñas" : cat === "lashes" ? "Cejas & Pest." : "Studio"}
+                      {cat === 'nails' ? 'Uñas' : cat === 'lashes' ? 'Cejas & Pest.' : 'Studio'}
                     </button>
                   ))}
                 </div>
@@ -513,10 +538,10 @@ export default function BookingPage() {
                 <input
                   type="file"
                   accept="image/*"
-                  onChange={(e) => {
+                  onChange={e => {
                     const file = e.target.files?.[0] || null;
                     setAddImageFile(file);
-                    if (file) setAddImageUrl("");
+                    if (file) setAddImageUrl('');
                   }}
                   className="w-full bg-brand-secondary/40 p-3 rounded-xl border border-brand-outline/20 text-xs outline-none focus:border-brand-primary file:mr-3 file:px-3 file:py-1.5 file:rounded-lg file:border-0 file:bg-brand-primary/10 file:text-brand-primary file:text-xs file:font-bold"
                 />
@@ -534,7 +559,7 @@ export default function BookingPage() {
                   type="url"
                   placeholder="https://ejemplo.com/imagen.jpg"
                   value={addImageUrl}
-                  onChange={(e) => {
+                  onChange={e => {
                     setAddImageUrl(e.target.value);
                     if (e.target.value) setAddImageFile(null);
                   }}
@@ -542,6 +567,7 @@ export default function BookingPage() {
                 />
               </div>
 
+              {/* Preview */}
               {(addImageFile || addImageUrl) && (
                 <div className="rounded-xl overflow-hidden border border-brand-outline/20 h-32">
                   <img
@@ -566,7 +592,7 @@ export default function BookingPage() {
                   className="flex-1 py-3 bg-brand-primary text-white rounded-xl font-bold text-xs uppercase tracking-wider hover:bg-brand-primary/90 disabled:opacity-50 flex items-center justify-center gap-2"
                 >
                   {isUploading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Plus className="w-4 h-4" />}
-                  {isUploading ? "Guardando..." : "Agregar"}
+                  {isUploading ? 'Guardando...' : 'Agregar'}
                 </button>
               </div>
             </form>
@@ -576,3 +602,4 @@ export default function BookingPage() {
     </div>
   );
 }
+

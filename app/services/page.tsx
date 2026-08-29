@@ -9,11 +9,51 @@ import { supabase } from "@/lib/supabase";
 
 function ServicesContent() {
   const [services, setServices] = useState<Service[]>([]);
+  const [isPremiumEnabled, setIsPremiumEnabled] = useState(true);
   const searchParams = useSearchParams();
 
   const initialCategory = searchParams.get("category") || "nails";
   const [activeCategory, setActiveCategory] = useState<string>(initialCategory);
   const [selectedForBooking, setSelectedForBooking] = useState<{ serviceId: string; optionId: string } | null>(null);
+
+  // ── Sincronizar estado premium desde Supabase Realtime ──────────────
+  useEffect(() => {
+    // 1. Obtener el valor inicial
+    const fetchInitial = async () => {
+      const { data } = await supabase
+        .from("app_settings")
+        .select("value")
+        .eq("key", "premium_enabled")
+        .single();
+
+      if (data) {
+        setIsPremiumEnabled(data.value === true || data.value === "true");
+      }
+    };
+    fetchInitial();
+
+    // 2. Suscribirse a cambios en tiempo real
+    const channel = supabase
+      .channel("app_settings_realtime_services")
+      .on(
+        "postgres_changes",
+        {
+          event: "UPDATE",
+          schema: "public",
+          table: "app_settings",
+          filter: "key=eq.premium_enabled",
+        },
+        (payload) => {
+          const raw = (payload.new as any).value;
+          setIsPremiumEnabled(raw === true || raw === "true");
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, []);
 
   useEffect(() => {
     const cat = searchParams.get("category");
@@ -50,11 +90,13 @@ function ServicesContent() {
           description: s.description,
           imageUrl: s.image_url,
           order: s.order_index,
+          isPremium: s.is_premium,
           options: (s.service_options || []).map((o: any) => ({
             id: o.id,
             name: o.name,
             price: Number(o.price),
             duration: o.duration_minutes ? `${o.duration_minutes} min` : "60 min",
+            isPremium: o.name.toLowerCase().includes("premium"),
           })),
         }));
 
@@ -116,6 +158,7 @@ function ServicesContent() {
                 <ServiceCard
                   key={service.id}
                   service={service}
+                  isPremiumEnabled={isPremiumEnabled}
                   onReserve={(serviceId, optionId) => setSelectedForBooking({ serviceId, optionId })}
                 />
               ))}
@@ -135,22 +178,55 @@ function ServicesContent() {
   );
 }
 
-function ServiceCard({ service, onReserve }: { service: Service; onReserve: (serviceId: string, optionId: string) => void }) {
+function ServiceCard({
+  service,
+  isPremiumEnabled,
+  onReserve,
+}: {
+  service: Service;
+  isPremiumEnabled: boolean;
+  onReserve: (serviceId: string, optionId: string) => void;
+}) {
   const [selectedOption, setSelectedOption] = useState(service.options[0]);
 
   useEffect(() => {
     if (service.options && service.options.length > 0) {
-      setSelectedOption(service.options[0]);
+      // Si la primera opción es premium y el modo premium está desactivado,
+      // selecciona la primera opción no premium disponible
+      const firstVisible = isPremiumEnabled
+        ? service.options[0]
+        : service.options.find((o) => !o.isPremium) || service.options[0];
+      setSelectedOption(firstVisible);
     }
-  }, [service]);
+  }, [service, isPremiumEnabled]);
+
+  const hasPremiumModalidad = service.options.some((o) => o.isPremium);
+  const hasVisibleOption = isPremiumEnabled || service.options.some((o) => !o.isPremium);
 
   return (
     <div className="bg-white rounded-3xl overflow-hidden border border-brand-outline/20 hover:border-brand-primary/30 transition-all duration-300">
-      <ServiceVectorHeader
-        category={service.category}
-        name={service.name}
-        duration={selectedOption.duration || "60 min"}
-      />
+      {service.imageUrl ? (
+        <div className="h-44 relative overflow-hidden bg-brand-secondary-dark border-b border-brand-outline/10">
+          <img
+            src={service.imageUrl}
+            alt={service.name}
+            className="w-full h-full object-cover"
+            referrerPolicy="no-referrer"
+          />
+          {selectedOption?.duration && (
+            <div className="absolute top-3.5 right-3.5 bg-[#1C1917]/85 backdrop-blur-md text-brand-primary border border-brand-primary/30 text-[10px] font-medium tracking-wider px-3 py-1 rounded-full shadow-xs flex items-center gap-1">
+              <span className="text-[11px]">⏱</span>
+              <span>{selectedOption.duration}</span>
+            </div>
+          )}
+        </div>
+      ) : (
+        <ServiceVectorHeader
+          category={service.category}
+          name={service.name}
+          duration={selectedOption.duration || "60 min"}
+        />
+      )}
 
       <div className="p-6 space-y-4">
         {(() => {
@@ -183,9 +259,42 @@ function ServiceCard({ service, onReserve }: { service: Service; onReserve: (ser
 
         {service.options.length > 1 && (
           <div className="space-y-1.5">
+            {!isPremiumEnabled && hasPremiumModalidad && service.options.some((o) => !o.isPremium) && (
+              <p className="text-[10px] text-brand-tertiary/50 italic">
+                🔒 La modalidad Premium está bloqueada – solo modalidades clásicas disponibles
+              </p>
+            )}
             <div className="grid grid-cols-2 gap-1.5 bg-brand-secondary-dark/70 p-1 rounded-2xl border border-brand-outline/20">
               {service.options.map((option) => {
+                const isPremium = !!option.isPremium;
+                const isBlocked = !isPremiumEnabled && isPremium;
                 const isActive = selectedOption.id === option.id;
+
+                if (isBlocked) {
+                  return (
+                    <div
+                      key={option.id}
+                      className="relative py-2.5 px-3 text-xs font-medium rounded-xl flex items-center justify-center gap-2 bg-brand-secondary/50 text-brand-tertiary/40 border border-dashed border-brand-outline/20 cursor-not-allowed select-none"
+                      title="Modalidad Premium bloqueada"
+                    >
+                      <span className="w-2 h-2 rounded-full bg-brand-tertiary/20 shrink-0" />
+                      <span className="line-through decoration-brand-outline/50">{option.name}</span>
+                      <svg
+                        className="w-3 h-3 text-brand-primary/60 shrink-0"
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        stroke="currentColor"
+                        strokeWidth="2"
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                      >
+                        <rect width="18" height="11" x="3" y="11" rx="2" ry="2" />
+                        <path d="M7 11V7a5 5 0 0 1 10 0v4" />
+                      </svg>
+                    </div>
+                  );
+                }
+
                 return (
                   <button
                     key={option.id}
@@ -213,7 +322,8 @@ function ServiceCard({ service, onReserve }: { service: Service; onReserve: (ser
         <div className="pt-1">
           <button
             onClick={() => onReserve(service.id, selectedOption.id)}
-            className="w-full py-3.5 px-6 bg-brand-primary hover:bg-brand-primary-light text-white font-medium rounded-2xl text-xs uppercase tracking-widest transition-all duration-300 shadow-xs active:scale-[0.98] text-center"
+            disabled={!hasVisibleOption}
+            className="w-full py-3.5 px-6 bg-brand-primary hover:bg-brand-primary-light text-white font-medium rounded-2xl text-xs uppercase tracking-widest transition-all duration-300 shadow-xs active:scale-[0.98] text-center disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-brand-primary"
           >
             Reservar mi cita
           </button>

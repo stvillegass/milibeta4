@@ -39,6 +39,7 @@ import {
   Navigation,
 } from "lucide-react";
 import { supabase } from "@/lib/supabase";
+import { useAuth } from "@/lib/AuthProvider";
 import { formatTime12h } from "@/lib/timeFormat";
 import { DndContext, closestCenter, KeyboardSensor, PointerSensor, useSensor, useSensors } from "@dnd-kit/core";
 import { arrayMove, SortableContext, sortableKeyboardCoordinates, verticalListSortingStrategy, useSortable } from "@dnd-kit/sortable";
@@ -61,8 +62,7 @@ import { es } from "date-fns/locale";
 
 export default function AdminPage() {
   const router = useRouter();
-  const [isAuthenticated, setIsAuthenticated] = useState(false);
-  const [isAuthLoading, setIsAuthLoading] = useState(true);
+  const { user, isAdmin, isAuthLoading } = useAuth();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [activeTab, setActiveTab] = useState<"schedule" | "calendar" | "services" | "interface" | "notifications">("schedule");
@@ -77,22 +77,7 @@ export default function AdminPage() {
   const [isSavingSettings, setIsSavingSettings] = useState(false);
 
   useEffect(() => {
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      setIsAuthenticated(!!session);
-      setIsAuthLoading(false);
-    });
-
-    const { data: { subscription: authListener } } = supabase.auth.onAuthStateChange((event, session) => {
-      setIsAuthenticated(!!session);
-    });
-
-    return () => {
-      authListener?.unsubscribe();
-    };
-  }, []);
-
-  useEffect(() => {
-    if (!isAuthenticated) return;
+    if (!isAdmin) return;
 
     fetch("/api/notification-settings")
       .then((res) => res.json())
@@ -123,7 +108,7 @@ export default function AdminPage() {
     const interval = setInterval(fetchNotifs, 4000);
 
     return () => clearInterval(interval);
-  }, [isAuthenticated]);
+  }, [isAdmin]);
 
   const handleMarkAllRead = () => {
     fetch("/api/notifications/mark-read", { method: "POST" }).then(() => {
@@ -176,6 +161,14 @@ export default function AdminPage() {
     await supabase.auth.signOut();
   };
 
+  // Navegación de no-admin como efecto secundario (no durante el render).
+  // Evita el warning de React: "Cannot update a component while rendering a different component".
+  useEffect(() => {
+    if (!isAuthLoading && user && !isAdmin) {
+      router.replace("/");
+    }
+  }, [user, isAdmin, isAuthLoading, router]);
+
   if (isAuthLoading) {
     return (
       <div className="flex items-center justify-center min-h-screen bg-brand-secondary">
@@ -184,7 +177,11 @@ export default function AdminPage() {
     );
   }
 
-  if (!isAuthenticated) {
+  if (user && !isAdmin) {
+    return null;
+  }
+
+  if (!user) {
     return (
       <div className="flex flex-col items-center justify-center min-h-screen p-5 bg-brand-secondary relative">
         <button onClick={() => router.back()} className="absolute top-5 left-5 p-2 text-brand-tertiary">
@@ -226,190 +223,250 @@ export default function AdminPage() {
     );
   }
 
+  const navTabs = [
+    { id: "schedule", label: "Horarios", icon: Clock },
+    { id: "calendar", label: "Citas", icon: Calendar },
+    { id: "notifications", label: "Alertas", icon: Bell, badge: unreadCount },
+    { id: "services", label: "Servicios", icon: Sparkles },
+    { id: "interface", label: "Ajustes", icon: ImageIcon },
+  ];
+
+  const tabContent = (
+    <AnimatePresence mode="wait">
+      <motion.div
+        key={activeTab}
+        initial={{ opacity: 0, y: 6, scale: 0.995 }}
+        animate={{ opacity: 1, y: 0, scale: 1 }}
+        exit={{ opacity: 0, y: -6, scale: 0.995 }}
+        transition={{ duration: 0.22, ease: [0.16, 1, 0.3, 1] }}
+        className="w-full gpu-layer"
+      >
+        {activeTab === "calendar" && <CalendarTab />}
+        {activeTab === "schedule" && <ScheduleTab />}
+        {activeTab === "notifications" && (
+          <NotificationsTab
+            notifications={notifications}
+            unreadCount={unreadCount}
+            onMarkAllRead={handleMarkAllRead}
+            onMarkOneRead={handleMarkOneRead}
+            onDeleteNotif={handleDeleteNotif}
+            webhookUrl={webhookUrl}
+            setWebhookUrl={setWebhookUrl}
+            whatsappAlertPhone={whatsappAlertPhone}
+            setWhatsappAlertPhone={setWhatsappAlertPhone}
+            onSaveSettings={handleSaveNotifSettings}
+            isSavingSettings={isSavingSettings}
+          />
+        )}
+        {activeTab === "services" && <ServicesTab />}
+        {activeTab === "interface" && <ClientInterfaceTab />}
+      </motion.div>
+    </AnimatePresence>
+  );
+
   return (
-    <div className="min-h-screen flex flex-col md:flex-row bg-brand-secondary text-brand-tertiary w-full">
-      <aside className="w-64 bg-white border-r border-brand-outline/10 hidden md:flex flex-col shrink-0 sticky top-0 h-screen">
-        <div className="p-6 border-b border-brand-outline/10 flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <button onClick={() => router.back()} className="p-1 -ml-2 text-brand-tertiary hover:bg-brand-secondary-dark rounded-lg transition-colors">
-              <ArrowLeft className="w-5 h-5" />
-            </button>
-            <h2 className="font-serif italic text-2xl font-light tracking-tight">Milibeauty</h2>
-          </div>
-          <button
-            onClick={() => setActiveTab("notifications")}
-            title="Notificaciones de Citas"
-            className="relative p-2 text-brand-tertiary hover:bg-brand-secondary rounded-xl transition-colors"
-          >
-            <Bell className="w-5 h-5" />
-            {unreadCount > 0 && (
-              <span className="absolute -top-1 -right-1 w-4 h-4 bg-red-500 text-white font-bold text-[9px] rounded-full flex items-center justify-center animate-pulse">
-                {unreadCount}
-              </span>
-            )}
-          </button>
-        </div>
-
-        <nav className="flex-1 p-4 space-y-2">
-          <button
-            onClick={() => setActiveTab("schedule")}
-            className={`w-full relative flex items-center gap-3 px-4 py-3 rounded-xl font-medium transition-colors z-10 text-left ${
-              activeTab === "schedule" ? "text-white font-bold" : "text-brand-tertiary hover:bg-brand-secondary-dark"
-            }`}
-          >
-            {activeTab === "schedule" && (
-              <motion.div
-                layoutId="activeDesktopAdminNavIndicator"
-                className="absolute inset-0 bg-[#C5A065] rounded-xl shadow-sm"
-                transition={{ type: "spring", stiffness: 350, damping: 30 }}
-                style={{ zIndex: -1 }}
-              />
-            )}
-            <Clock className="w-5 h-5 relative z-10" /> <span className="relative z-10">Horarios y Días</span>
-          </button>
-
-          <button
-            onClick={() => setActiveTab("calendar")}
-            className={`w-full relative flex items-center gap-3 px-4 py-3 rounded-xl font-medium transition-colors z-10 text-left ${
-              activeTab === "calendar" ? "text-white font-bold" : "text-brand-tertiary hover:bg-brand-secondary-dark"
-            }`}
-          >
-            {activeTab === "calendar" && (
-              <motion.div
-                layoutId="activeDesktopAdminNavIndicator"
-                className="absolute inset-0 bg-[#C5A065] rounded-xl shadow-sm"
-                transition={{ type: "spring", stiffness: 350, damping: 30 }}
-                style={{ zIndex: -1 }}
-              />
-            )}
-            <Calendar className="w-5 h-5 relative z-10" /> <span className="relative z-10">Citas y Calendario</span>
-          </button>
-
-          <button
-            onClick={() => setActiveTab("notifications")}
-            className={`w-full relative flex items-center justify-between px-4 py-3 rounded-xl font-medium transition-colors z-10 text-left ${
-              activeTab === "notifications" ? "text-white font-bold" : "text-brand-tertiary hover:bg-brand-secondary-dark"
-            }`}
-          >
-            {activeTab === "notifications" && (
-              <motion.div
-                layoutId="activeDesktopAdminNavIndicator"
-                className="absolute inset-0 bg-[#C5A065] rounded-xl shadow-sm"
-                transition={{ type: "spring", stiffness: 350, damping: 30 }}
-                style={{ zIndex: -1 }}
-              />
-            )}
-            <div className="flex items-center gap-3 relative z-10">
-              <Bell className={`w-5 h-5 ${activeTab === "notifications" ? "text-white" : "text-amber-500"}`} />
-              <span>Notificaciones</span>
+    <div className="w-full min-h-screen bg-brand-secondary">
+      {/* ── MOBILE LAYOUT (< md) ── */}
+      <div className="md:hidden min-h-screen w-full bg-[#d4d4d8]/40 flex justify-center">
+        {/* NATIVE MOBILE FRAME */}
+        <div className="w-full max-w-[430px] min-h-screen bg-brand-secondary text-brand-tertiary flex flex-col relative shadow-2xl border-x border-brand-outline/30 pb-28">
+          
+          {/* Mobile App Header */}
+          <header className="sticky top-0 z-40 bg-white/80 backdrop-blur-2xl border-b border-white/50 px-4 py-3.5 flex justify-between items-center shadow-[0_2px_12px_rgba(0,0,0,0.03)] gpu-layer">
+            <div className="flex items-center gap-2.5">
+              <motion.button 
+                whileHover={{ scale: 1.05 }}
+                whileTap={{ scale: 0.92 }}
+                transition={{ type: "spring", stiffness: 450, damping: 25 }}
+                onClick={() => router.push('/')} 
+                className="p-2 bg-brand-secondary/70 rounded-xl text-brand-tertiary border border-brand-outline/30 shadow-xs"
+                title="Volver a la Web"
+              >
+                <ArrowLeft className="w-4 h-4" />
+              </motion.button>
+              <div>
+                <h2 className="font-serif italic text-base font-bold leading-tight">Milibeauty Admin</h2>
+                <p className="text-[10px] text-brand-primary font-semibold uppercase tracking-wider">Gestión del Studio</p>
+              </div>
             </div>
-            {unreadCount > 0 && (
-              <span className={`px-2 py-0.5 text-[10px] font-bold rounded-full relative z-10 ${activeTab === "notifications" ? "bg-white/30 text-white" : "bg-red-500 text-white"}`}>
-                {unreadCount}
-              </span>
-            )}
-          </button>
 
-          <button
-            onClick={() => setActiveTab("services")}
-            className={`w-full relative flex items-center gap-3 px-4 py-3 rounded-xl font-medium transition-colors z-10 text-left ${
-              activeTab === "services" ? "text-white font-bold" : "text-brand-tertiary hover:bg-brand-secondary-dark"
-            }`}
+            <div className="flex items-center gap-2">
+              <motion.button
+                whileHover={{ scale: 1.05 }}
+                whileTap={{ scale: 0.92 }}
+                transition={{ type: "spring", stiffness: 450, damping: 25 }}
+                onClick={() => setActiveTab('notifications')}
+                className="relative p-2 bg-brand-secondary/70 rounded-xl text-brand-tertiary border border-brand-outline/30 shadow-xs"
+              >
+                <Bell className="w-4 h-4 text-brand-primary" />
+                {unreadCount > 0 && (
+                  <span className="absolute -top-1 -right-1 w-4 h-4 bg-red-500 text-white font-bold text-[9px] rounded-full flex items-center justify-center animate-pulse shadow-xs">
+                    {unreadCount}
+                  </span>
+                )}
+              </motion.button>
+              <motion.button 
+                whileHover={{ scale: 1.04 }}
+                whileTap={{ scale: 0.92 }}
+                onClick={handleLogout} 
+                className="text-xs font-bold text-red-600 bg-red-50 border border-red-200 px-3 py-1.5 rounded-xl shadow-xs"
+              >
+                Salir
+              </motion.button>
+            </div>
+          </header>
+
+          {/* Tab Body */}
+          <main className="p-3.5 w-full flex-1 overflow-y-auto">
+            {tabContent}
+          </main>
+
+          {/* ── Fixed Floating Capsule Bottom Navigation ── */}
+          <nav
+            aria-label="Navegación Móvil Admin"
+            className="fixed bottom-4 left-1/2 -translate-x-1/2 z-50 w-[calc(100%-1.5rem)] max-w-[400px] gpu-layer"
           >
-            {activeTab === "services" && (
-              <motion.div
-                layoutId="activeDesktopAdminNavIndicator"
-                className="absolute inset-0 bg-[#C5A065] rounded-xl shadow-sm"
-                transition={{ type: "spring", stiffness: 350, damping: 30 }}
-                style={{ zIndex: -1 }}
-              />
-            )}
-            <Settings className="w-5 h-5 relative z-10" /> <span className="relative z-10">Servicios</span>
-          </button>
-
-          <button
-            onClick={() => setActiveTab("interface")}
-            className={`w-full relative flex items-center gap-3 px-4 py-3 rounded-xl font-medium transition-colors z-10 text-left ${
-              activeTab === "interface" ? "text-white font-bold" : "text-brand-tertiary hover:bg-brand-secondary-dark"
-            }`}
-          >
-            {activeTab === "interface" && (
-              <motion.div
-                layoutId="activeDesktopAdminNavIndicator"
-                className="absolute inset-0 bg-[#C5A065] rounded-xl shadow-sm"
-                transition={{ type: "spring", stiffness: 350, damping: 30 }}
-                style={{ zIndex: -1 }}
-              />
-            )}
-            <ImageIcon className="w-5 h-5 relative z-10" /> <span className="relative z-10">Interfaz Cliente</span>
-          </button>
-        </nav>
-        <div className="p-4 border-t border-brand-outline/10">
-          <button onClick={handleLogout} className="w-full text-left px-4 py-2 text-sm text-brand-tertiary/60 hover:text-brand-tertiary">
-            Cerrar sesión
-          </button>
+            <div className="glass-capsule rounded-3xl p-1.5 flex items-center justify-around relative touch-none select-none">
+              {navTabs.map(tab => {
+                const Icon = tab.icon;
+                const active = activeTab === tab.id;
+                return (
+                  <motion.button
+                    key={tab.id}
+                    whileHover={{ scale: 1.04 }}
+                    whileTap={{ scale: 0.90 }}
+                    transition={{ type: "spring", stiffness: 500, damping: 25, mass: 0.5 }}
+                    onClick={() => setActiveTab(tab.id as any)}
+                    aria-label={tab.label}
+                    title={tab.label}
+                    className={`relative flex items-center justify-center gap-1.5 py-2 px-2.5 rounded-2xl transition-colors duration-200 z-10 ${
+                      active ? 'text-white font-semibold' : 'text-stone-600 hover:text-stone-900'
+                    }`}
+                  >
+                    {active && (
+                      <motion.div
+                        layoutId="activeAdminNativePill"
+                        className="absolute inset-0 gold-gradient-pill rounded-2xl"
+                        initial={false}
+                        transition={{ type: "spring", stiffness: 420, damping: 30, mass: 0.7 }}
+                        style={{ zIndex: -1 }}
+                      />
+                    )}
+                    <div className="relative flex items-center gap-1">
+                      <Icon className="w-4.5 h-4.5 stroke-[1.75]" />
+                      {tab.badge && tab.badge > 0 ? (
+                        <span className={`absolute -top-1.5 -right-2 px-1 min-w-[14px] h-[14px] ${active ? 'bg-white text-[#C5A065]' : 'bg-rose-500 text-white'} font-bold text-[9px] rounded-full flex items-center justify-center shadow-xs`}>
+                          {tab.badge > 9 ? '9+' : tab.badge}
+                        </span>
+                      ) : null}
+                      <AnimatePresence mode="wait">
+                        {active && (
+                          <motion.span
+                            initial={{ opacity: 0, width: 0, scale: 0.9 }}
+                            animate={{ opacity: 1, width: 'auto', scale: 1 }}
+                            exit={{ opacity: 0, width: 0, scale: 0.9 }}
+                            transition={{ duration: 0.22, ease: [0.16, 1, 0.3, 1] }}
+                            className="text-[11.5px] font-bold tracking-tight whitespace-nowrap overflow-hidden"
+                          >
+                            {tab.label}
+                          </motion.span>
+                        )}
+                      </AnimatePresence>
+                    </div>
+                  </motion.button>
+                );
+              })}
+            </div>
+          </nav>
         </div>
-      </aside>
+      </div>
 
-      <main className="flex-1 min-w-0 pb-32 md:pb-10">
-        <header className="md:hidden sticky top-0 z-40 bg-white/95 backdrop-blur-md border-b border-brand-outline/10 p-4 flex justify-between items-center shadow-xs">
-          <div className="flex items-center gap-3">
-            <button onClick={() => router.back()} className="p-1 -ml-1 text-brand-tertiary">
-              <ArrowLeft className="w-5 h-5" />
-            </button>
-            <h2 className="font-serif italic text-xl tracking-tight">Admin</h2>
+      {/* ── DESKTOP LAYOUT (>= md) ── */}
+      <div className="hidden md:flex min-h-screen flex-col md:flex-row bg-brand-secondary text-brand-tertiary w-full">
+        <aside className="w-64 bg-white border-r border-brand-outline/10 flex flex-col shrink-0 sticky top-0 h-screen shadow-[1px_0_12px_rgba(0,0,0,0.02)]">
+          <div className="p-6 border-b border-brand-outline/10 flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <motion.button
+                whileHover={{ scale: 1.1, x: -2 }}
+                whileTap={{ scale: 0.92 }}
+                onClick={() => router.push('/')}
+                className="p-1.5 -ml-2 text-brand-tertiary hover:bg-brand-secondary rounded-xl transition-colors"
+              >
+                <ArrowLeft className="w-5 h-5" />
+              </motion.button>
+              <h2 className="font-serif italic text-2xl font-normal tracking-tight">Milibeauty</h2>
+            </div>
           </div>
-          <div className="flex items-center gap-2">
-            <button
-              onClick={() => setActiveTab("notifications")}
-              className="relative p-2 text-brand-tertiary hover:bg-brand-secondary rounded-xl transition-colors"
-            >
-              <Bell className="w-5 h-5 text-amber-600" />
-              {unreadCount > 0 && (
-                <span className="absolute -top-1 -right-1 w-4 h-4 bg-red-500 text-white font-bold text-[9px] rounded-full flex items-center justify-center animate-pulse">
-                  {unreadCount}
-                </span>
-              )}
-            </button>
-            <button onClick={handleLogout} className="text-sm font-semibold text-brand-tertiary/80 hover:text-brand-tertiary">
-              Salir
+          
+          <nav className="flex-1 p-4 space-y-2">
+            {navTabs.map(tab => {
+              const Icon = tab.icon;
+              const active = activeTab === tab.id;
+              return (
+                <motion.button
+                  key={`desktop-${tab.id}`}
+                  whileHover={{ x: 3 }}
+                  whileTap={{ scale: 0.97 }}
+                  transition={{ type: "spring", stiffness: 450, damping: 25 }}
+                  onClick={() => setActiveTab(tab.id as any)}
+                  className={`w-full relative flex items-center justify-between px-4 py-3 rounded-2xl font-medium transition-colors z-10 text-left select-none ${
+                    active ? "text-white font-bold" : "text-stone-700 hover:text-stone-950 hover:bg-brand-secondary/60"
+                  }`}
+                >
+                  {active && (
+                    <motion.div
+                      layoutId="activeDesktopAdminNavIndicator"
+                      className="absolute inset-0 gold-gradient-pill rounded-2xl"
+                      transition={{ type: "spring", stiffness: 420, damping: 30, mass: 0.7 }}
+                      style={{ zIndex: -1 }}
+                    />
+                  )}
+                  <div className="flex items-center gap-3 relative z-10">
+                    <Icon className="w-5 h-5 stroke-[1.75]" />
+                    <span className="text-sm font-semibold">{tab.label}</span>
+                  </div>
+                  {tab.badge && tab.badge > 0 ? (
+                    <span className={`px-2 py-0.5 text-[10px] font-bold rounded-full relative z-10 shadow-xs ${active ? "bg-white text-[#C5A065]" : "bg-rose-500 text-white"}`}>
+                      {tab.badge}
+                    </span>
+                  ) : null}
+                </motion.button>
+              );
+            })}
+          </nav>
+          
+          <div className="p-4 border-t border-brand-outline/10">
+            <button onClick={handleLogout} className="w-full text-left px-4 py-2.5 text-xs uppercase tracking-wider font-bold text-red-600/80 hover:text-red-700 hover:bg-red-50 rounded-xl transition-colors">
+              Cerrar sesión
             </button>
           </div>
-        </header>
+        </aside>
 
-        <div className="p-4 sm:p-6 md:p-10 max-w-5xl mx-auto overflow-hidden">
-          <AnimatePresence mode="wait">
-            <motion.div
-              key={activeTab}
-              initial={{ opacity: 0, x: 14, scale: 0.99 }}
-              animate={{ opacity: 1, x: 0, scale: 1 }}
-              exit={{ opacity: 0, x: -14, scale: 0.99 }}
-              transition={{ duration: 0.28, ease: [0.32, 0.72, 0, 1] }}
-              className="w-full"
-            >
-              {activeTab === "schedule" && <ScheduleTab />}
-              {activeTab === "calendar" && <CalendarTab />}
-              {activeTab === "notifications" && (
-                <NotificationsTab
-                  notifications={notifications}
-                  unreadCount={unreadCount}
-                  onMarkAllRead={handleMarkAllRead}
-                  onMarkOneRead={handleMarkOneRead}
-                  onDeleteNotif={handleDeleteNotif}
-                  webhookUrl={webhookUrl}
-                  setWebhookUrl={setWebhookUrl}
-                  whatsappAlertPhone={whatsappAlertPhone}
-                  setWhatsappAlertPhone={setWhatsappAlertPhone}
-                  onSaveSettings={handleSaveNotifSettings}
-                  isSavingSettings={isSavingSettings}
-                />
-              )}
-              {activeTab === "services" && <ServicesTab />}
-              {activeTab === "interface" && <ClientInterfaceTab />}
-            </motion.div>
-          </AnimatePresence>
-        </div>
-      </main>
+        <main className="flex-1 min-w-0 pb-10">
+          <header className="sticky top-0 z-40 bg-white/95 backdrop-blur-md border-b border-brand-outline/10 p-4 flex justify-end items-center shadow-xs">
+            <div className="flex items-center gap-2">
+              <button
+                onClick={() => setActiveTab("notifications")}
+                className="relative p-2 text-brand-tertiary hover:bg-brand-secondary rounded-xl transition-colors"
+              >
+                <Bell className="w-5 h-5 text-amber-600" />
+                {unreadCount > 0 && (
+                  <span className="absolute -top-1 -right-1 w-4 h-4 bg-red-500 text-white font-bold text-[9px] rounded-full flex items-center justify-center animate-pulse">
+                    {unreadCount}
+                  </span>
+                )}
+              </button>
+              <button onClick={handleLogout} className="text-sm font-semibold text-brand-tertiary/80 hover:text-brand-tertiary">
+                Salir
+              </button>
+            </div>
+          </header>
+
+          <div className="p-4 sm:p-6 md:p-10 max-w-5xl mx-auto overflow-hidden">
+            {tabContent}
+          </div>
+        </main>
+      </div>
     </div>
   );
 }
@@ -563,6 +620,7 @@ function NotificationsTab({
 function CalendarTab() {
   const [events, setEvents] = useState<any[]>([]);
   const [bookings, setBookings] = useState<any[]>([]);
+  const [blockedDates, setBlockedDates] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [currentMonth, setCurrentMonth] = useState(new Date());
   const [selectedDate, setSelectedDate] = useState<Date>(new Date());
@@ -609,6 +667,13 @@ function CalendarTab() {
       }
     } catch (e) {
       console.error("Error fetching bookings:", e);
+    }
+
+    try {
+      const { data: bData } = await supabase.from("blocked_dates").select("*");
+      if (bData) setBlockedDates(bData);
+    } catch (e) {
+      console.error("Error fetching blocked dates:", e);
     }
 
     if (Array.isArray(calendarData)) setEvents(calendarData);
@@ -731,6 +796,8 @@ function CalendarTab() {
                 const isTodayDate = isToday(day);
                 const dayBookings = bookings.filter((b) => b.date === dateStr);
                 const count = dayBookings.length;
+                const isBlocked = blockedDates.some((b) => b.date === dateStr);
+                const blockInfo = blockedDates.find((b) => b.date === dateStr);
 
                 return (
                   <button
@@ -739,6 +806,8 @@ function CalendarTab() {
                     className={`min-h-[72px] p-1.5 rounded-xl border flex flex-col justify-between text-left transition-all relative ${
                       isSelected
                         ? "bg-brand-tertiary text-white border-brand-tertiary shadow-md ring-2 ring-brand-primary"
+                        : isBlocked
+                        ? "bg-red-50/80 text-red-900 border-red-200"
                         : isTodayDate
                         ? "bg-brand-primary/10 text-brand-tertiary border-brand-primary font-bold"
                         : !isCurrent
@@ -749,14 +818,20 @@ function CalendarTab() {
                     <div className="flex items-center justify-between">
                       <span className={`text-xs font-semibold ${isSelected ? "text-white" : ""}`}>{format(day, "d")}</span>
                       {isTodayDate && !isSelected && <span className="text-[8px] font-bold text-brand-primary uppercase">Hoy</span>}
+                      {isBlocked && !isSelected && <span className="text-[8px] font-bold text-red-600 uppercase" title={blockInfo?.reason || "Bloqueado"}>⛔</span>}
                     </div>
-                    {count > 0 && (
-                      <div className="mt-1">
+                    <div className="mt-1 space-y-0.5">
+                      {isBlocked && (
+                        <span className={`text-[8px] font-bold px-1 py-0.2 rounded-sm block text-center truncate ${isSelected ? "bg-red-900/80 text-white" : "bg-red-100 text-red-700"}`}>
+                          Bloqueado
+                        </span>
+                      )}
+                      {count > 0 && (
                         <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded-md block text-center truncate ${isSelected ? "bg-amber-300 text-brand-tertiary font-extrabold" : "bg-brand-primary text-white shadow-2xs"}`}>
                           {count} {count === 1 ? "Cita" : "Citas"}
                         </span>
-                      </div>
-                    )}
+                      )}
+                    </div>
                   </button>
                 );
               })}
@@ -769,11 +844,29 @@ function CalendarTab() {
                 <span className="text-[10px] font-bold text-brand-tertiary/50 uppercase block">Citas Agendadas</span>
                 <h3 className="text-lg font-serif italic text-brand-tertiary capitalize">{format(selectedDate, "EEEE d 'de' MMMM", { locale: es })}</h3>
               </div>
-              <span className="text-xs font-bold px-2.5 py-1 bg-brand-primary/10 text-brand-primary rounded-xl">
-                {selectedDayBookings.length} {selectedDayBookings.length === 1 ? "Cita" : "Citas"}
-              </span>
+              <div className="flex items-center gap-1.5">
+                {blockedDates.some((b) => b.date === selectedDateStr) && (
+                  <span className="text-[10px] font-bold px-2 py-0.5 bg-red-100 text-red-700 border border-red-200 rounded-lg">
+                    ⛔ Día Bloqueado
+                  </span>
+                )}
+                <span className="text-xs font-bold px-2.5 py-1 bg-brand-primary/10 text-brand-primary rounded-xl">
+                  {selectedDayBookings.length} {selectedDayBookings.length === 1 ? "Cita" : "Citas"}
+                </span>
+              </div>
             </div>
             <div className="flex-1 overflow-y-auto mt-4 space-y-3 max-h-[420px] pr-1">
+              {blockedDates.some((b) => b.date === selectedDateStr) && (
+                <div className="p-3 bg-red-50 border border-red-200 rounded-xl flex items-center gap-2 text-xs text-red-800">
+                  <CalendarX className="w-4 h-4 text-red-600 shrink-0" />
+                  <div>
+                    <span className="font-bold block">Día marcado como Bloqueado</span>
+                    <span className="text-[11px] text-red-600">
+                      {blockedDates.find((b) => b.date === selectedDateStr)?.reason || "No se permiten reservas este día."}
+                    </span>
+                  </div>
+                </div>
+              )}
               {selectedDayBookings.length === 0 ? (
                 <div className="text-center py-12 px-4 text-brand-tertiary/50 bg-brand-secondary/30 rounded-2xl border border-dashed border-brand-outline/20">
                   <CalendarX className="w-8 h-8 mx-auto mb-2 text-brand-tertiary/30" />
@@ -909,6 +1002,60 @@ function CalendarTab() {
 }
 
 // Services Tab
+// ──────────────────────────────────────────────────────────────
+// Helper compartido: sube una imagen al bucket de Supabase Storage
+// y devuelve la URL pública. Usa el bucket público "lookbook-images"
+// (con política de INSERT para usuarios autenticados/admins).
+async function uploadImageToBucket(file: File, folder: string): Promise<string | null> {
+  const ext = file.name.split(".").pop() || "png";
+  const fileName = `${folder}/${Date.now()}-${Math.random().toString(36).slice(2, 8)}.${ext}`;
+  const BUCKET = "lookbook-images";
+
+  let { error } = await supabase.storage.from(BUCKET).upload(fileName, file, {
+    cacheControl: "3600",
+    upsert: false,
+  });
+
+  // Si el bucket no existe, intentar crearlo y reintentar
+  if (error && (error.message?.toLowerCase().includes("bucket not found") || (error as any)?.statusCode === 404 || (error as any)?.error === "Bucket not found")) {
+    console.warn(`[Admin] Bucket "${BUCKET}" no encontrado. Intentando crear...`);
+    const { error: bucketError } = await supabase.storage.createBucket(BUCKET, {
+      public: true,
+      fileSizeLimit: 5242880, // 5 MB
+      allowedMimeTypes: ["image/jpeg", "image/png", "image/webp", "image/gif", "image/avif"],
+    });
+
+    if (bucketError && !bucketError.message?.toLowerCase().includes("already exists")) {
+      console.error(`[Admin] No se pudo crear el bucket "${BUCKET}":`, bucketError);
+      console.error("ℹ️ Solución: Ejecuta el script supabase/create_lookbook_bucket.sql en tu panel de Supabase.");
+      return null;
+    }
+
+    const retryResult = await supabase.storage.from(BUCKET).upload(fileName, file, {
+      cacheControl: "3600",
+      upsert: false,
+    });
+    error = retryResult.error;
+  }
+
+  if (error) {
+    console.error("[Admin] Error al subir imagen:", error.message);
+    return null;
+  }
+
+  const { data: publicUrlData } = supabase.storage.from(BUCKET).getPublicUrl(fileName);
+  return publicUrlData?.publicUrl || null;
+}
+
+// Forma interna de una opción/modalidad de servicio en el formulario
+interface ServiceOptionForm {
+  id?: string;
+  name: string;
+  price: string;
+  duration_minutes: string;
+  description: string;
+}
+
 function ServicesTab() {
   const [services, setServices] = useState<Service[]>([]);
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
@@ -918,6 +1065,14 @@ function ServicesTab() {
   const [newServiceDesc, setNewServiceDesc] = useState("");
   const [newServiceImageUrl, setNewServiceImageUrl] = useState("");
   const [isSavingService, setIsSavingService] = useState(false);
+  // Opciones / modalidades (Clásico, Premium, etc.)
+  const [newServiceOptions, setNewServiceOptions] = useState<ServiceOptionForm[]>([
+    { name: "Clásico", price: "", duration_minutes: "60", description: "" },
+  ]);
+  // Subida de imagen de portada desde el dispositivo
+  const [serviceImageFile, setServiceImageFile] = useState<File | null>(null);
+  const [serviceImagePreview, setServiceImagePreview] = useState("");
+  const [isUploadingImage, setIsUploadingImage] = useState(false);
 
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
@@ -947,6 +1102,7 @@ function ServicesTab() {
         name: o.name,
         price: Number(o.price),
         duration: o.duration_minutes ? `${o.duration_minutes} min` : "60 min",
+        description: o.description || "",
       })),
     }));
     setServices(mapped);
@@ -955,6 +1111,74 @@ function ServicesTab() {
   useEffect(() => {
     loadServices();
   }, []);
+
+  // ── Reset / apertura del formulario ────────────────────────────
+  const resetServiceForm = () => {
+    setEditingServiceId(null);
+    setSelectedCategory(null);
+    setNewServiceName("");
+    setNewServiceDesc("");
+    setNewServiceImageUrl("");
+    setServiceImagePreview("");
+    setServiceImageFile(null);
+    setNewServiceOptions([{ name: "Clásico", price: "", duration_minutes: "60", description: "" }]);
+  };
+
+  const openCreateService = () => {
+    resetServiceForm();
+    setNewServiceOptions([{ name: "Clásico", price: "", duration_minutes: "60", description: "" }]);
+    setIsAddModalOpen(true);
+  };
+
+  // ── Editar servicio (precarga el modal) ─────────────────────────
+  const handleEditService = (service: Service) => {
+    setEditingServiceId(service.id);
+    setSelectedCategory(service.category);
+    setNewServiceName(service.name);
+    setNewServiceDesc(service.description || "");
+    setNewServiceImageUrl(service.imageUrl || "");
+    setServiceImagePreview(service.imageUrl || "");
+    setServiceImageFile(null);
+    setNewServiceOptions(
+      (service.options && service.options.length > 0
+        ? service.options
+        : [{ name: "Clásico", price: "", duration_minutes: "60", description: "" }]
+      ).map((o: any) => ({
+        id: o.id,
+        name: o.name || "",
+        price: o.price != null ? String(o.price) : "",
+        duration_minutes: String(o.duration || "").replace(" min", "") || "60",
+        description: o.description || "",
+      }))
+    );
+    setIsAddModalOpen(true);
+  };
+
+  // ── Gestión dinámica de opciones ────────────────────────────────
+  const handleAddOption = () => {
+    setNewServiceOptions((prev) => [
+      ...prev,
+      { name: "Nueva Modalidad", price: "", duration_minutes: "60", description: "" },
+    ]);
+  };
+
+  const handleOptionChange = (index: number, field: keyof ServiceOptionForm, value: string) => {
+    setNewServiceOptions((prev) => prev.map((o, i) => (i === index ? { ...o, [field]: value } : o)));
+  };
+
+  const handleRemoveOption = (index: number) => {
+    setNewServiceOptions((prev) => (prev.length <= 1 ? prev : prev.filter((_, i) => i !== index)));
+  };
+
+  // ── Subida de imagen de portada ─────────────────────────────────
+  const handleServiceImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setServiceImageFile(file);
+    const reader = new FileReader();
+    reader.onload = () => setServiceImagePreview(String(reader.result));
+    reader.readAsDataURL(file);
+  };
 
   const handleDragEnd = async (event: any) => {
     const { active, over } = event;
@@ -977,34 +1201,90 @@ function ServicesTab() {
 
     setIsSavingService(true);
     try {
-      const defaultImg =
-        selectedCategory === "nails"
-          ? "https://images.unsplash.com/photo-1604654894610-df63bc536371?q=80&w=1000&auto=format&fit=crop"
-          : "https://images.unsplash.com/photo-1588661609100-3490b6cba2d3?q=80&w=1000&auto=format&fit=crop";
+      let imageUrl = newServiceImageUrl.trim();
+
+      // Subir nueva imagen de portada si se seleccionó un archivo
+      if (serviceImageFile) {
+        setIsUploadingImage(true);
+        const uploaded = await uploadImageToBucket(serviceImageFile, "services");
+        if (uploaded) imageUrl = uploaded;
+        setIsUploadingImage(false);
+      }
 
       const servicePayload = {
         category: selectedCategory,
         name: newServiceName.trim(),
         description: newServiceDesc.trim() || "Servicio exclusivo Milibeauty",
-        image_url: newServiceImageUrl.trim() || defaultImg,
+        image_url: imageUrl || null,
         ...(editingServiceId ? {} : { order_index: services.length + 1 }),
       };
 
-      if (editingServiceId) {
-        const { error } = await supabase.from("services").update(servicePayload).eq("id", editingServiceId);
+      let serviceId = editingServiceId;
+      if (serviceId) {
+        const { error } = await supabase.from("services").update(servicePayload).eq("id", serviceId);
         if (error) throw error;
       } else {
-        const { error } = await supabase.from("services").insert(servicePayload);
+        const { data, error } = await supabase.from("services").insert(servicePayload).select().single();
         if (error) throw error;
+        serviceId = data.id;
+      }
+
+      // ── Persistir opciones/modalidades (Clásico, Premium, etc.) ──
+      if (serviceId) {
+        const { data: existingOpts } = await supabase
+          .from("service_options")
+          .select("id")
+          .eq("service_id", serviceId);
+        const existingIds = new Set<string>((existingOpts || []).map((o: any) => o.id));
+        const keptIds = new Set<string>();
+
+        for (const opt of newServiceOptions) {
+          const name = opt.name.trim();
+          if (!name) continue;
+
+          const priceNum = parseFloat(String(opt.price).replace(/[^0-9.]/g, "")) || 0;
+          const durationNum = parseInt(String(opt.duration_minutes).replace(/\D/g, ""), 10) || 60;
+          const optionPayload = {
+            service_id: serviceId,
+            name,
+            price: priceNum,
+            duration_minutes: durationNum,
+            description: (opt.description || "").trim(),
+          };
+
+          if (opt.id && existingIds.has(opt.id)) {
+            keptIds.add(opt.id);
+            const { error } = await supabase.from("service_options").update(optionPayload).eq("id", opt.id);
+            if (error) throw error;
+          } else {
+            const { data: newOpt, error } = await supabase
+              .from("service_options")
+              .insert(optionPayload)
+              .select("id")
+              .single();
+            if (error) throw error;
+            keptIds.add(newOpt.id);
+          }
+        }
+
+        // Eliminar opciones que fueron quitadas del formulario
+        for (const existingId of existingIds) {
+          if (!keptIds.has(existingId)) {
+            const { error } = await supabase.from("service_options").delete().eq("id", existingId);
+            if (error) console.error("Error eliminando opción de servicio:", error);
+          }
+        }
       }
 
       setIsAddModalOpen(false);
+      resetServiceForm();
       loadServices();
     } catch (err) {
       console.error("Error saving service:", err);
       alert("Error al guardar el servicio");
     } finally {
       setIsSavingService(false);
+      setIsUploadingImage(false);
     }
   };
 
@@ -1030,7 +1310,7 @@ function ServicesTab() {
           <p className="text-brand-tertiary/60">Agrega, edita y arrastra para reordenar tus servicios.</p>
         </div>
         <button
-          onClick={() => { setEditingServiceId(null); setSelectedCategory(null); setNewServiceName(""); setNewServiceDesc(""); setNewServiceImageUrl(""); setIsAddModalOpen(true); }}
+          onClick={openCreateService}
           className="bg-brand-primary text-white px-5 py-3 flex items-center gap-2 rounded-xl text-xs uppercase font-bold tracking-widest shadow-sm hover:opacity-95 transition-all active:scale-95"
         >
           <Plus className="w-4 h-4" /> Agregar Servicio
@@ -1041,7 +1321,7 @@ function ServicesTab() {
         <SortableContext items={services} strategy={verticalListSortingStrategy}>
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
             {services.map((service) => (
-              <SortableServiceItem key={service.id} service={service} onDelete={handleDeleteService} />
+              <SortableServiceItem key={service.id} service={service} onEdit={handleEditService} onDelete={handleDeleteService} />
             ))}
           </div>
         </SortableContext>
@@ -1100,8 +1380,76 @@ function ServicesTab() {
                 </div>
                 <div>
                   <label className="block text-xs font-bold uppercase tracking-wider mb-1 text-brand-tertiary/70">Imagen de Portada del Servicio</label>
-                  <input type="url" placeholder="https://ejemplo.com/imagen.jpg" value={newServiceImageUrl} onChange={(e) => setNewServiceImageUrl(e.target.value)} className="w-full bg-brand-secondary/30 px-3 py-1.5 rounded-lg border border-brand-outline/20 outline-none text-xs focus:border-brand-primary" />
+                  <div className="flex items-start gap-3">
+                    <div className="w-24 h-24 rounded-xl overflow-hidden border border-brand-outline/15 bg-brand-secondary/40 shrink-0 flex items-center justify-center">
+                      {serviceImagePreview ? (
+                        <img src={serviceImagePreview} alt="Preview portada" className="w-full h-full object-cover" referrerPolicy="no-referrer" />
+                      ) : (
+                        <ImageIcon className="w-6 h-6 text-brand-tertiary/40" />
+                      )}
+                    </div>
+                    <label className="flex-1 cursor-pointer border-2 border-dashed border-brand-outline/30 hover:border-brand-primary/60 bg-brand-secondary/20 hover:bg-brand-primary/5 rounded-xl p-3 flex flex-col items-center justify-center text-center transition-all">
+                      <Upload className="w-5 h-5 text-brand-primary mb-1" />
+                      <span className="text-[11px] font-bold text-brand-tertiary">Subir imagen desde el dispositivo</span>
+                      <span className="text-[10px] text-brand-tertiary/50">JPG, PNG, WEBP · máx 5 MB</span>
+                      <input
+                        type="file"
+                        accept="image/*"
+                        className="hidden"
+                        onChange={handleServiceImageChange}
+                      />
+                    </label>
+                  </div>
+                  {isUploadingImage && (
+                    <p className="flex items-center gap-2 text-[11px] text-brand-primary mt-2">
+                      <Loader2 className="w-3.5 h-3.5 animate-spin" /> Subiendo imagen...
+                    </p>
+                  )}
                 </div>
+
+                {/* ── Opciones / Modalidades (Clásico, Premium, etc.) ── */}
+                <div className="bg-brand-secondary/20 border border-brand-outline/10 rounded-xl p-3.5 space-y-3">
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-bold uppercase tracking-wider text-brand-tertiary/70">Opciones / Modalidades</span>
+                    <button type="button" onClick={handleAddOption} className="flex items-center gap-1 text-[11px] font-bold text-brand-primary hover:opacity-80">
+                      <Plus className="w-3.5 h-3.5" /> Agregar opción
+                    </button>
+                  </div>
+
+                  {newServiceOptions.map((opt, idx) => (
+                    <div key={opt.id || idx} className="bg-white rounded-xl border border-brand-outline/15 p-3 space-y-2.5">
+                      <div className="flex items-center gap-2">
+                        <input
+                          type="text"
+                          placeholder="Nombre / Tipo (ej. Clásico, Premium)"
+                          value={opt.name}
+                          onChange={(e) => handleOptionChange(idx, "name", e.target.value)}
+                          className="flex-1 min-w-0 bg-brand-secondary/30 p-2 rounded-lg border border-brand-outline/20 outline-none text-xs focus:border-brand-primary"
+                        />
+                        {newServiceOptions.length > 1 && (
+                          <button type="button" onClick={() => handleRemoveOption(idx)} className="p-2 text-red-500 hover:bg-red-50 rounded-lg transition-colors shrink-0" title="Eliminar opción">
+                            <Trash2 className="w-4 h-4" />
+                          </button>
+                        )}
+                      </div>
+                      <div className="grid grid-cols-2 gap-2">
+                        <div>
+                          <label className="block text-[10px] font-bold uppercase text-brand-tertiary/50 mb-1">Precio ($)</label>
+                          <input type="text" inputMode="decimal" placeholder="Ej: 25" value={opt.price} onChange={(e) => handleOptionChange(idx, "price", e.target.value)} className="w-full bg-brand-secondary/30 p-2 rounded-lg border border-brand-outline/20 outline-none text-xs focus:border-brand-primary" />
+                        </div>
+                        <div>
+                          <label className="block text-[10px] font-bold uppercase text-brand-tertiary/50 mb-1">Duración (min)</label>
+                          <input type="text" inputMode="numeric" placeholder="Ej: 60" value={opt.duration_minutes} onChange={(e) => handleOptionChange(idx, "duration_minutes", e.target.value)} className="w-full bg-brand-secondary/30 p-2 rounded-lg border border-brand-outline/20 outline-none text-xs focus:border-brand-primary" />
+                        </div>
+                      </div>
+                      <div>
+                        <label className="block text-[10px] font-bold uppercase text-brand-tertiary/50 mb-1">Descripción (qué incluye)</label>
+                        <textarea rows={2} placeholder="Ej: Esmaltado semipermanente + limado + hidratación" value={opt.description} onChange={(e) => handleOptionChange(idx, "description", e.target.value)} className="w-full bg-brand-secondary/30 p-2 rounded-lg border border-brand-outline/20 outline-none text-xs focus:border-brand-primary resize-none" />
+                      </div>
+                    </div>
+                  ))}
+                </div>
+
                 <div className="flex justify-end gap-2 pt-4 border-t border-brand-outline/10">
                   <button type="button" onClick={() => setIsAddModalOpen(false)} className="px-4 py-2.5 rounded-xl border border-brand-outline/20 text-xs font-bold uppercase text-brand-tertiary/70 hover:bg-gray-50">
                     Cancelar
@@ -1120,7 +1468,7 @@ function ServicesTab() {
   );
 }
 
-function SortableServiceItem({ service, onDelete }: { service: Service; onDelete?: (id: string) => void }) {
+function SortableServiceItem({ service, onEdit, onDelete }: { service: Service; onEdit?: (s: Service) => void; onDelete?: (id: string) => void }) {
   const { attributes, listeners, setNodeRef, transform, transition } = useSortable({ id: service.id });
   const style = { transform: CSS.Transform.toString(transform), transition };
   const categoryLabel = service.category === "nails" ? "💅 Uñas" : "👁️ Cejas y Pestañas";
@@ -1158,6 +1506,11 @@ function SortableServiceItem({ service, onDelete }: { service: Service; onDelete
         </div>
       </div>
       <div className="p-4 pt-0 grid grid-cols-2 gap-2.5">
+        {onEdit && (
+          <button onClick={() => onEdit(service)} className="w-full py-3 px-4 bg-brand-primary/10 hover:bg-brand-primary/20 text-brand-primary font-bold text-xs uppercase tracking-wider rounded-xl flex items-center justify-center gap-2 transition-all active:scale-[0.98] border border-brand-primary/20">
+            <Pencil className="w-4 h-4" /> Editar
+          </button>
+        )}
         {onDelete && (
           <button onClick={() => onDelete(service.id)} className="w-full py-3 px-4 bg-red-50 hover:bg-red-100 text-red-600 font-bold text-xs uppercase tracking-wider rounded-xl flex items-center justify-center gap-2 transition-all active:scale-[0.98] border border-red-200">
             <Trash2 className="w-4 h-4" /> Eliminar
@@ -1551,26 +1904,148 @@ function ClientInterfaceTab() {
     badge3: "Higiene Estricta",
     studioAddress: "Av. Principal Las Mercedes, Edificio Centro Empresarial, Piso 3, Local 302",
     mapsUrl: "https://www.google.com/maps/search/?api=1&query=Milibeauty+Studio",
+    bankName: "Banesco (0134)",
+    bankId: "V-26123456",
+    bankPhone: "0412-1234567",
+    bankOwner: "Milibeauty C.A.",
+    premiumEnabled: true,
+    whatsappReminderTemplate:
+      "¡Hola {nombre}! ✨ Se acerca el tiempo ideal para el retoque de tu servicio de {servicio}. Tu cita fue el {fecha} a las {hora}. ¿Te gustaría agendar tu cita para esta semana?",
+    whatsappConfirmationTemplate:
+      "¡Hola {nombre}! 🌸 Tu cita en Milibeauty quedó confirmada: {servicio} el {fecha} a las {hora}. ¡Te esperamos! 💅✨",
   });
   const [isSaving, setIsSaving] = useState(false);
   const [saveSuccess, setSaveSuccess] = useState(false);
+  // Subida de portadas de especialidades desde el dispositivo
+  const [categoryUploading, setCategoryUploading] = useState<"nails" | "lashes" | null>(null);
 
   useEffect(() => {
-    fetch("/api/categories/images")
-      .then((res) => res.json())
-      .then((data) => {
-        if (data?.nails || data?.lashes) {
-          setCategoryImages((prev) => ({ nails: data.nails || prev.nails, lashes: data.lashes || prev.lashes }));
+    const loadConfig = async () => {
+      try {
+        console.log("🔄 [Admin] Cargando configuración desde Supabase & API...");
+
+        // 1. Cargar imágenes de portada
+        fetch("/api/categories/images")
+          .then((res) => res.json())
+          .then((data) => {
+            if (data?.nails || data?.lashes) {
+              setCategoryImages((prev) => ({ nails: data.nails || prev.nails, lashes: data.lashes || prev.lashes }));
+            }
+          })
+          .catch(console.error);
+
+        // 2. Consulta directa a Supabase (app_settings)
+        const { data: dbSettings, error: dbErr } = await supabase
+          .from("app_settings")
+          .select("key, value");
+
+        let premiumFromDB: boolean | null = null;
+        let siteConfigFromDB: any = null;
+
+        if (!dbErr && dbSettings && dbSettings.length > 0) {
+          console.log("✅ [Admin] Datos recibidos directamente de Supabase (app_settings):", dbSettings);
+          dbSettings.forEach((item) => {
+            if (item.key === "premium_enabled") {
+              premiumFromDB = typeof item.value === "string" ? item.value === "true" : Boolean(item.value);
+            }
+            if (item.key === "site_config" && typeof item.value === "object" && item.value !== null) {
+              siteConfigFromDB = item.value;
+            }
+          });
+        } else if (dbErr) {
+          console.warn("Aviso leyendo app_settings de Supabase:", dbErr);
         }
-      })
-      .catch(console.error);
-    fetch("/api/site-config")
-      .then((res) => res.json())
-      .then((data) => {
-        if (data) setSiteConfig((prev) => ({ ...prev, ...data }));
-      })
-      .catch(console.error);
+
+        // 3. Consulta a API de respaldo
+        const res = await fetch("/api/site-config");
+        const apiData = await res.json();
+        console.log("✅ [Admin] Configuración API site-config:", apiData);
+
+        setSiteConfig((prev) => {
+          const merged = {
+            ...prev,
+            ...(apiData || {}),
+            ...(siteConfigFromDB || {}),
+          };
+          if (premiumFromDB !== null) {
+            merged.premiumEnabled = premiumFromDB;
+          } else if (apiData?.premiumEnabled !== undefined) {
+            merged.premiumEnabled = Boolean(apiData.premiumEnabled);
+          }
+          console.log("✨ [Admin] Estado de Modo Premium inicializado desde DB:", merged.premiumEnabled);
+          return merged;
+        });
+      } catch (err) {
+        console.error("❌ [Admin] Error al cargar la configuración:", err);
+      }
+    };
+
+    loadConfig();
   }, []);
+
+  const [isPremiumSaving, setIsPremiumSaving] = useState(false);
+
+  const handleTogglePremium = async (newVal: boolean) => {
+    // 1. Actualización optimista inmediata
+    const previousVal = siteConfig.premiumEnabled;
+    setSiteConfig((prev) => ({ ...prev, premiumEnabled: newVal }));
+    setIsPremiumSaving(true);
+
+    try {
+      // 2. Persistir en Supabase con la única clave canonica: 'premium_enabled'
+      //    El valor es un bool nativo — Supabase lo convierte a JSONB automáticamente
+      const { error: dbError } = await supabase.from("app_settings").upsert(
+        { key: "premium_enabled", value: newVal },
+        { onConflict: "key" }
+      );
+
+      if (dbError) {
+        // Rollback: revertir estado local si falla la escritura
+        console.error("[Admin] Error persistiendo premium_enabled:", dbError);
+        setSiteConfig((prev) => ({ ...prev, premiumEnabled: previousVal }));
+        return;
+      }
+
+      // 3. Sincronizar la API en memoria (/api/site-config) para consistencia
+      await fetch("/api/site-config", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ premiumEnabled: newVal }),
+      });
+
+      setSaveSuccess(true);
+      setTimeout(() => setSaveSuccess(false), 2500);
+    } catch (err) {
+      console.error("[Admin] Error inesperado al cambiar premium:", err);
+      // Rollback también ante errores de red
+      setSiteConfig((prev) => ({ ...prev, premiumEnabled: previousVal }));
+    } finally {
+      setIsPremiumSaving(false);
+    }
+  };
+
+  // Sube una portada de especialidad al Storage, muestra preview y actualiza categoryImages
+  const handleCategoryImageChange = async (key: "nails" | "lashes", file: File) => {
+    const reader = new FileReader();
+    reader.onload = () => setCategoryImages((prev) => ({ ...prev, [key]: String(reader.result) }));
+    reader.readAsDataURL(file);
+
+    setCategoryUploading(key);
+    try {
+      const url = await uploadImageToBucket(file, "covers");
+      if (url) {
+        setCategoryImages((prev) => ({ ...prev, [key]: url }));
+        console.log(`✅ [Admin] Portada "${key}" actualizada:`, url);
+      } else {
+        alert("Error al subir la imagen de portada. Verifica que el bucket de Storage esté configurado.");
+      }
+    } catch (err) {
+      console.error("❌ [Admin] Error subiendo portada:", err);
+      alert("Error al subir la imagen de portada.");
+    } finally {
+      setCategoryUploading(null);
+    }
+  };
 
   const handleSave = async () => {
     setIsSaving(true);
@@ -1594,7 +2069,7 @@ function ClientInterfaceTab() {
   return (
     <div className="space-y-6">
       <div className="flex justify-end">
-        <button onClick={handleSave} disabled={isSaving} className="bg-brand-tertiary text-white px-6 py-3 rounded-xl font-bold text-xs uppercase tracking-wider flex items-center justify-center gap-2 hover:bg-brand-tertiary/90 transition-colors shrink-0 shadow-sm">
+        <button onClick={handleSave} disabled={isSaving} className="bg-brand-primary text-white px-6 py-3 rounded-xl font-bold text-xs uppercase tracking-wider flex items-center justify-center gap-2 hover:bg-brand-primary-light transition-colors shrink-0 shadow-sm active:scale-95">
           {isSaving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
           <span>Guardar Cambios</span>
         </button>
@@ -1602,9 +2077,172 @@ function ClientInterfaceTab() {
       {saveSuccess && (
         <div className="bg-emerald-50 text-emerald-800 text-xs px-4 py-3 rounded-xl flex items-center gap-2 border border-emerald-200 shadow-xs animate-in fade-in">
           <Check className="w-4 h-4 text-emerald-600 shrink-0" />
-          <span><strong>¡Interfaz actualizada!</strong> Los cambios ya se reflejan en la pantalla de inicio de tus clientes.</span>
+          <span><strong>¡Configuración guardada!</strong> Los cambios ya se reflejan en tiempo real en la experiencia de tus clientes.</span>
         </div>
       )}
+
+      {/* ── MODALIDAD PREMIUM ── */}
+      <div className="bg-white rounded-2xl p-6 border border-brand-outline/10 shadow-xs">
+        <div className="flex items-start sm:items-center justify-between gap-4">
+          <div className="flex items-center gap-3 min-w-0">
+            <div className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 transition-colors duration-300 ${
+              siteConfig.premiumEnabled ? "bg-amber-100" : "bg-gray-100"
+            }`}>
+              <Sparkles className={`w-5 h-5 transition-colors duration-300 ${
+                siteConfig.premiumEnabled ? "text-amber-500" : "text-gray-400"
+              }`} />
+            </div>
+            <div className="min-w-0">
+              <h4 className="font-serif italic font-medium text-base text-brand-tertiary leading-tight">
+                Modalidad Premium
+              </h4>
+              <p className="text-xs text-brand-tertiary/55 mt-0.5 leading-snug">
+                {siteConfig.premiumEnabled
+                  ? "Las opciones Premium son visibles para los clientes."
+                  : "Solo modalidades clásicas son visibles para los clientes."}
+              </p>
+            </div>
+          </div>
+
+          {/* Toggle iOS-style */}
+          <button
+            role="switch"
+            aria-checked={Boolean(siteConfig.premiumEnabled)}
+            aria-label="Activar o desactivar modo Premium"
+            disabled={isPremiumSaving}
+            onClick={() => handleTogglePremium(!siteConfig.premiumEnabled)}
+            className={`relative flex-shrink-0 w-[52px] h-[30px] rounded-full outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-brand-primary transition-colors duration-300 ease-in-out disabled:opacity-60 disabled:cursor-not-allowed ${
+              siteConfig.premiumEnabled
+                ? "bg-brand-primary"
+                : "bg-gray-200"
+            }`}
+            style={{ WebkitTapHighlightColor: "transparent" }}
+          >
+            <span
+              className={`absolute top-[3px] left-[3px] w-6 h-6 rounded-full bg-white shadow-[0_2px_6px_rgba(0,0,0,0.18)] flex items-center justify-center transition-transform duration-300 ease-[cubic-bezier(0.34,1.56,0.64,1)] ${
+                siteConfig.premiumEnabled ? "translate-x-[22px]" : "translate-x-0"
+              }`}
+            >
+              {isPremiumSaving ? (
+                <Loader2 className="w-3 h-3 text-gray-400 animate-spin" />
+              ) : (
+                <span className={`w-1.5 h-1.5 rounded-full transition-colors duration-200 ${
+                  siteConfig.premiumEnabled ? "bg-brand-primary" : "bg-gray-300"
+                }`} />
+              )}
+            </span>
+          </button>
+        </div>
+
+        <div className="mt-4 pt-4 border-t border-brand-outline/10 flex items-center justify-between">
+          <span className={`text-[11px] font-bold uppercase tracking-wider px-3 py-1 rounded-full transition-all duration-300 ${
+            siteConfig.premiumEnabled
+              ? "bg-amber-50 text-amber-700 border border-amber-200"
+              : "bg-gray-50 text-gray-500 border border-gray-200"
+          }`}>
+            {siteConfig.premiumEnabled ? "✨ Premium Activo" : "Estándar"}
+          </span>
+          <p className="text-[11px] text-brand-tertiary/50 leading-snug max-w-[200px] text-right">
+            El cambio se propaga instantáneamente a todos los clientes.
+          </p>
+        </div>
+      </div>
+
+      {/* ── GESTIÓN DE DATOS DE PAGO MÓVIL Y TRANSFERENCIAS ── */}
+      <div className="bg-white rounded-2xl p-6 border border-brand-outline/10 shadow-xs space-y-4">
+        <div className="flex items-center justify-between border-b border-brand-outline/10 pb-3">
+          <div className="flex items-center gap-2">
+            <Smartphone className="w-5 h-5 text-brand-primary" />
+            <div>
+              <h4 className="font-serif italic font-medium text-lg text-brand-tertiary">Datos de Pago Móvil & Bancarios</h4>
+              <p className="text-xs text-brand-tertiary/60">Se sincronizan en el paso de confirmación y pago de tus clientas.</p>
+            </div>
+          </div>
+        </div>
+
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div>
+            <label className="text-[11px] font-bold uppercase text-brand-tertiary/70 tracking-wider block mb-1">
+              Banco (con código) *
+            </label>
+            <input
+              type="text"
+              placeholder="Ej: Banesco (0134) o Mercantil (0105)"
+              value={siteConfig.bankName || ""}
+              onChange={(e) => setSiteConfig((prev) => ({ ...prev, bankName: e.target.value }))}
+              className="w-full px-3.5 py-2.5 text-sm bg-brand-secondary/30 border border-brand-outline/10 rounded-xl outline-none focus:border-brand-primary focus:bg-white"
+              required
+            />
+          </div>
+
+          <div>
+            <label className="text-[11px] font-bold uppercase text-brand-tertiary/70 tracking-wider block mb-1">
+              Cédula de Identidad o RIF *
+            </label>
+            <input
+              type="text"
+              placeholder="Ej: V-26123456 o J-123456789"
+              value={siteConfig.bankId || ""}
+              onChange={(e) => setSiteConfig((prev) => ({ ...prev, bankId: e.target.value }))}
+              className="w-full px-3.5 py-2.5 text-sm bg-brand-secondary/30 border border-brand-outline/10 rounded-xl outline-none focus:border-brand-primary focus:bg-white"
+              required
+            />
+          </div>
+
+          <div>
+            <label className="text-[11px] font-bold uppercase text-brand-tertiary/70 tracking-wider block mb-1">
+              Teléfono para Pago Móvil *
+            </label>
+            <input
+              type="text"
+              placeholder="Ej: 0412-1234567"
+              value={siteConfig.bankPhone || ""}
+              onChange={(e) => setSiteConfig((prev) => ({ ...prev, bankPhone: e.target.value }))}
+              className="w-full px-3.5 py-2.5 text-sm bg-brand-secondary/30 border border-brand-outline/10 rounded-xl outline-none focus:border-brand-primary focus:bg-white"
+              required
+            />
+          </div>
+
+          <div>
+            <label className="text-[11px] font-bold uppercase text-brand-tertiary/70 tracking-wider block mb-1">
+              Titular de la Cuenta *
+            </label>
+            <input
+              type="text"
+              placeholder="Ej: Milibeauty Studio C.A."
+              value={siteConfig.bankOwner || ""}
+              onChange={(e) => setSiteConfig((prev) => ({ ...prev, bankOwner: e.target.value }))}
+              className="w-full px-3.5 py-2.5 text-sm bg-brand-secondary/30 border border-brand-outline/10 rounded-xl outline-none focus:border-brand-primary focus:bg-white"
+              required
+            />
+          </div>
+        </div>
+
+        {/* Vista previa en tiempo real */}
+        <div className="mt-2 p-3.5 bg-brand-secondary/30 rounded-2xl border border-brand-outline/15 space-y-2">
+          <span className="text-[10px] font-bold uppercase text-brand-primary tracking-widest block">
+            Vista Previa de lo que verá la Clienta:
+          </span>
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-xs">
+            <div className="p-2 bg-white rounded-xl border border-brand-outline/10">
+              <span className="text-[9px] text-brand-tertiary/50 uppercase font-bold block">Banco</span>
+              <span className="font-bold text-brand-tertiary">{siteConfig.bankName || "Por definir"}</span>
+            </div>
+            <div className="p-2 bg-white rounded-xl border border-brand-outline/10">
+              <span className="text-[9px] text-brand-tertiary/50 uppercase font-bold block">CI / RIF</span>
+              <span className="font-bold text-brand-tertiary">{siteConfig.bankId || "Por definir"}</span>
+            </div>
+            <div className="p-2 bg-white rounded-xl border border-brand-outline/10">
+              <span className="text-[9px] text-brand-tertiary/50 uppercase font-bold block">Teléfono</span>
+              <span className="font-bold text-brand-tertiary">{siteConfig.bankPhone || "Por definir"}</span>
+            </div>
+            <div className="p-2 bg-white rounded-xl border border-brand-outline/10">
+              <span className="text-[9px] text-brand-tertiary/50 uppercase font-bold block">Titular</span>
+              <span className="font-bold text-brand-tertiary">{siteConfig.bankOwner || "Por definir"}</span>
+            </div>
+          </div>
+        </div>
+      </div>
 
       <div className="bg-white rounded-2xl p-6 border border-brand-outline/10 shadow-xs space-y-4">
         <h4 className="font-serif italic font-medium text-lg text-brand-tertiary border-b border-brand-outline/10 pb-3 flex items-center gap-2">
@@ -1653,7 +2291,24 @@ function ClientInterfaceTab() {
                 <h6 className="text-white text-xl font-serif italic font-medium">{siteConfig.nailsTitle || "Manicure"}</h6>
               </div>
             </div>
-            <input type="text" value={categoryImages.nails} onChange={(e) => setCategoryImages((prev) => ({ ...prev, nails: e.target.value }))} className="w-full px-3 py-2 text-xs bg-white border border-brand-outline/10 rounded-lg outline-none focus:border-brand-primary" />
+            <label className="flex items-center justify-center gap-2 border-2 border-dashed border-brand-outline/30 hover:border-brand-primary/60 bg-white hover:bg-brand-primary/5 cursor-pointer rounded-lg py-2.5 text-xs font-bold text-brand-tertiary/70 hover:text-brand-primary transition-all">
+              {categoryUploading === "nails" ? (
+                <Loader2 className="w-4 h-4 animate-spin text-brand-primary" />
+              ) : (
+                <Upload className="w-4 h-4 text-brand-primary" />
+              )}
+              <span>{categoryUploading === "nails" ? "Subiendo..." : "Subir imagen desde el dispositivo"}</span>
+              <input
+                type="file"
+                accept="image/*"
+                className="hidden"
+                onChange={(e) => {
+                  const f = e.target.files?.[0];
+                  if (f) handleCategoryImageChange("nails", f);
+                  e.target.value = "";
+                }}
+              />
+            </label>
           </div>
           <div className="space-y-4 bg-brand-secondary/30 p-5 rounded-2xl border border-brand-outline/10">
             <h5 className="font-serif italic font-medium text-base text-brand-tertiary">👁️ Categoría Cejas & Pestañas</h5>
@@ -1665,8 +2320,91 @@ function ClientInterfaceTab() {
                 <h6 className="text-white text-xl font-serif italic font-medium">{siteConfig.lashesTitle || "Cejas y Pestañas"}</h6>
               </div>
             </div>
-            <input type="text" value={categoryImages.lashes} onChange={(e) => setCategoryImages((prev) => ({ ...prev, lashes: e.target.value }))} className="w-full px-3 py-2 text-xs bg-white border border-brand-outline/10 rounded-lg outline-none focus:border-brand-primary" />
+            <label className="flex items-center justify-center gap-2 border-2 border-dashed border-brand-outline/30 hover:border-brand-primary/60 bg-white hover:bg-brand-primary/5 cursor-pointer rounded-lg py-2.5 text-xs font-bold text-brand-tertiary/70 hover:text-brand-primary transition-all">
+              {categoryUploading === "lashes" ? (
+                <Loader2 className="w-4 h-4 animate-spin text-brand-primary" />
+              ) : (
+                <Upload className="w-4 h-4 text-brand-primary" />
+              )}
+              <span>{categoryUploading === "lashes" ? "Subiendo..." : "Subir imagen desde el dispositivo"}</span>
+              <input
+                type="file"
+                accept="image/*"
+                className="hidden"
+                onChange={(e) => {
+                  const f = e.target.files?.[0];
+                  if (f) handleCategoryImageChange("lashes", f);
+                  e.target.value = "";
+                }}
+              />
+            </label>
           </div>
+        </div>
+      </div>
+
+      <div className="bg-white rounded-2xl p-6 border border-brand-outline/10 shadow-xs space-y-4">
+        <h4 className="font-serif italic font-medium text-lg text-brand-tertiary border-b border-brand-outline/10 pb-3 flex items-center gap-2">
+          <Send className="w-4 h-4 text-brand-primary" /> Plantilla de Recordatorio por WhatsApp
+        </h4>
+        <p className="text-xs text-brand-tertiary/60 leading-relaxed">
+          Este mensaje se envía automáticamente a las clientas cuando llega el tiempo de retoque de su servicio.
+          Puedes usar estas variables, que se reemplazarán automáticamente con los datos de cada reserva:
+        </p>
+        <div className="flex flex-wrap gap-2 text-[11px]">
+          {["{nombre}", "{servicio}", "{fecha}", "{hora}"].map((v) => (
+            <code key={v} className="px-2 py-1 bg-brand-secondary/50 border border-brand-outline/10 rounded-lg font-mono text-brand-primary">{v}</code>
+          ))}
+        </div>
+        <div>
+          <label className="text-[11px] font-bold uppercase text-brand-tertiary/70 tracking-wider block mb-1">
+            Mensaje del recordatorio
+          </label>
+          <textarea
+            value={siteConfig.whatsappReminderTemplate || ""}
+            onChange={(e) => setSiteConfig((prev) => ({ ...prev, whatsappReminderTemplate: e.target.value }))}
+            rows={5}
+            placeholder="¡Hola {nombre}! Se acerca el tiempo ideal para el retoque de tu servicio de {servicio}..."
+            className="w-full px-3.5 py-2.5 text-sm bg-brand-secondary/30 border border-brand-outline/10 rounded-xl outline-none focus:border-brand-primary focus:bg-white resize-y leading-relaxed"
+          />
+        </div>
+        <div className="flex items-center gap-2 text-[11px] text-brand-tertiary/50">
+          <CheckCircle className="w-3.5 h-3.5 text-brand-primary shrink-0" />
+          <span>
+            Se guarda al pulsar <strong>Guardar Cambios</strong>. Si dejas alguna variable fuera, se omitirá en el mensaje.
+          </span>
+        </div>
+      </div>
+
+      <div className="bg-white rounded-2xl p-6 border border-brand-outline/10 shadow-xs space-y-4">
+        <h4 className="font-serif italic font-medium text-lg text-brand-tertiary border-b border-brand-outline/10 pb-3 flex items-center gap-2">
+          <Send className="w-4 h-4 text-brand-primary" /> Plantilla de Confirmación de Reserva por WhatsApp
+        </h4>
+        <p className="text-xs text-brand-tertiary/60 leading-relaxed">
+          Este mensaje se envía automáticamente a la clienta justo después de que confirme su reserva desde el sitio web.
+          Puedes usar estas variables, que se reemplazarán automáticamente con los datos de cada reserva:
+        </p>
+        <div className="flex flex-wrap gap-2 text-[11px]">
+          {["{nombre}", "{servicio}", "{fecha}", "{hora}"].map((v) => (
+            <code key={v} className="px-2 py-1 bg-brand-secondary/50 border border-brand-outline/10 rounded-lg font-mono text-brand-primary">{v}</code>
+          ))}
+        </div>
+        <div>
+          <label className="text-[11px] font-bold uppercase text-brand-tertiary/70 tracking-wider block mb-1">
+            Mensaje de confirmación
+          </label>
+          <textarea
+            value={siteConfig.whatsappConfirmationTemplate || ""}
+            onChange={(e) => setSiteConfig((prev) => ({ ...prev, whatsappConfirmationTemplate: e.target.value }))}
+            rows={5}
+            placeholder="¡Hola {nombre}! Tu cita en Milibeauty quedó confirmada: {servicio} el {fecha} a las {hora}. ¡Te esperamos!"
+            className="w-full px-3.5 py-2.5 text-sm bg-brand-secondary/30 border border-brand-outline/10 rounded-xl outline-none focus:border-brand-primary focus:bg-white resize-y leading-relaxed"
+          />
+        </div>
+        <div className="flex items-center gap-2 text-[11px] text-brand-tertiary/50">
+          <CheckCircle className="w-3.5 h-3.5 text-brand-primary shrink-0" />
+          <span>
+            Se guarda al pulsar <strong>Guardar Cambios</strong>. Si dejas alguna variable fuera, se omitirá en el mensaje.
+          </span>
         </div>
       </div>
     </div>
