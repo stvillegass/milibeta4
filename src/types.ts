@@ -5,6 +5,7 @@ export interface ServiceOption {
   duration?: string;
   description?: string;
   includes?: string[];
+  isPremium?: boolean;
 }
 
 export interface Service {
@@ -15,6 +16,7 @@ export interface Service {
   imageUrl: string;
   options: ServiceOption[];
   order: number;
+  isPremium?: boolean;
 }
 
 export interface Appointment {
