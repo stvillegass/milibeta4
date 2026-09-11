@@ -1,6 +1,6 @@
-import "dotenv/config";
-import express from "express";
+import fs from "fs";
 import path from "path";
+import express from "express";
 import { createServer as createViteServer } from "vite";
 import { GoogleGenAI } from "@google/genai";
 import { google } from "googleapis";
@@ -17,6 +17,37 @@ import {
   saveGoogleEventId,
 } from "./src/lib/googleCalendar";
 
+// --- Carga de variables de entorno desde el archivo .env ---
+// Reemplaza a `import "dotenv/config"` para no depender de que el paquete
+// `dotenv` esté instalado/tipado en este proyecto.
+function loadEnvFile(filePath: string): void {
+  if (!fs.existsSync(filePath)) return;
+  const content = fs.readFileSync(filePath, "utf8");
+  const lines = content.split(/\r?\n/);
+  for (const rawLine of lines) {
+    const line = rawLine.trim();
+    if (!line || line.startsWith("#")) continue;
+    const eq = line.indexOf("=");
+    if (eq === -1) continue;
+    const key = line.slice(0, eq).trim();
+    let value = line.slice(eq + 1).trim();
+    // Quitar comillas envolventes ("" o '')
+    if (
+      value.length >= 2 &&
+      ((value.startsWith('"') && value.endsWith('"')) ||
+        (value.startsWith("'") && value.endsWith("'")))
+    ) {
+      value = value.slice(1, -1);
+    }
+    // No sobrescribir variables ya definidas en el entorno real
+    if (process.env[key] === undefined) {
+      process.env[key] = value;
+    }
+  }
+}
+
+loadEnvFile(path.join(process.cwd(), ".env"));
+
 async function startServer() {
   const app = express();
   const PORT = 3000;
@@ -26,7 +57,7 @@ async function startServer() {
   // Web Push VAPID Configuration
   const vapidPublicKey = process.env.VAPID_PUBLIC_KEY || process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY;
   const vapidPrivateKey = process.env.VAPID_PRIVATE_KEY;
-  const vapidSubject = process.env.VAPID_SUBJECT || "mailto:admin@milibeauty.com";
+  const vapidSubject = process.env.VAPID_SUBJECT || "mailto:milibeauty21@gmail.com";
 
   let vapidKeys = {
     publicKey: vapidPublicKey || "",
@@ -438,7 +469,7 @@ async function startServer() {
       optionName: "Clásico",
       price: 25,
       clientName: "Valentina Mendoza",
-      clientPhone: "+584121112233",
+      clientPhone: "+584120574955",
       paymentMethod: "pagomovil",
       referenceNumber: "982314",
       createdAt: new Date().toISOString()
@@ -465,7 +496,7 @@ async function startServer() {
       message: "Valentina Mendoza agendó Manicura Semipermanente (Clásico) para el 2026-08-12 a las 10:00 hs.",
       bookingId: "b_sample_1",
       clientName: "Valentina Mendoza",
-      clientPhone: "+584121112233",
+      clientPhone: "+584120574955",
       serviceName: "Manicura Semipermanente",
       date: "2026-08-12",
       time: "10:00",
@@ -476,7 +507,7 @@ async function startServer() {
 
   let adminNotificationSettings = {
     webhookUrl: "",
-    whatsappNumber: "+584121112233",
+    whatsappNumber: "+584120574955",
     soundEnabled: true,
     pushEnabled: true
   };

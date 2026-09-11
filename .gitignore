@@ -30,6 +30,10 @@ yarn-debug.log*
 yarn-error.log*
 .pnpm-debug.log*
 
+# Dev server logs (procesos iniciados localmente)
+next-dev.log
+next-dev.err.log
+
 # Vercel
 .vercel
 

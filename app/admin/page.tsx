@@ -73,7 +73,7 @@ export default function AdminPage() {
     typeof window !== "undefined" && "Notification" in window ? Notification.permission : "default"
   );
   const [webhookUrl, setWebhookUrl] = useState("");
-  const [whatsappAlertPhone, setWhatsappAlertPhone] = useState("+584121112233");
+  const [whatsappAlertPhone, setWhatsappAlertPhone] = useState("+584120574955");
   const [isSavingSettings, setIsSavingSettings] = useState(false);
 
   useEffect(() => {
@@ -528,7 +528,7 @@ function NotificationsTab({
           <label className="text-[11px] font-bold text-brand-tertiary/60 uppercase block mb-1">Teléfono Admin para WhatsApp Directo</label>
           <input
             type="text"
-            placeholder="+584121112233"
+            placeholder="+584120574955"
             value={whatsappAlertPhone}
             onChange={(e) => setWhatsappAlertPhone(e.target.value)}
             className="w-full bg-brand-secondary/40 p-2.5 rounded-xl border border-brand-outline/20 text-xs font-semibold outline-none focus:border-brand-primary"

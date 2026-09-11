@@ -172,20 +172,20 @@ export async function sendWhatsAppReminder(
   startTime?: string,
   supabase?: any
 ): Promise<boolean> {
-  const apiUrl = process.env.WHATSAPP_API_URL;
-  const instanceName = process.env.WHATSAPP_INSTANCE_NAME;
-  const apiKey = process.env.WHATSAPP_API_TOKEN;
+  const apiUrl = process.env.EVOLUTION_API_URL;
+  const instanceName = process.env.EVOLUTION_INSTANCE_NAME;
+  const apiKey = process.env.EVOLUTION_API_KEY;
 
   console.log("🟡 [sendWhatsAppReminder] Env vars:", {
-    WHATSAPP_API_URL: apiUrl || "(vacío)",
-    WHATSAPP_INSTANCE_NAME: instanceName || "(vacío)",
-    WHATSAPP_API_TOKEN: apiKey ? `${apiKey.slice(0, 3)}...${apiKey.slice(-3)}` : "(vacío)",
+    EVOLUTION_API_URL: apiUrl || "(vacío)",
+    EVOLUTION_INSTANCE_NAME: instanceName || "(vacío)",
+    EVOLUTION_API_KEY: apiKey ? `${apiKey.slice(0, 3)}...${apiKey.slice(-3)}` : "(vacío)",
     phoneRecibido: phone,
   });
 
   if (!apiUrl || !instanceName || !apiKey) {
     console.error(
-      "❌ ERROR: Faltan variables de entorno WHATSAPP_API_URL, WHATSAPP_INSTANCE_NAME o WHATSAPP_API_TOKEN."
+      "❌ ERROR: Faltan variables de entorno EVOLUTION_API_URL, EVOLUTION_INSTANCE_NAME o EVOLUTION_API_KEY."
     );
     return false;
   }
@@ -282,14 +282,14 @@ export async function sendWhatsAppConfirmation(
 ): Promise<boolean> {
   const { fecha: fechaOpt, hora: horaOpt, startTime, supabase } = opts;
 
-  const apiUrl = process.env.WHATSAPP_API_URL;
-  const instanceName = process.env.WHATSAPP_INSTANCE_NAME;
-  const apiKey = process.env.WHATSAPP_API_TOKEN;
+  const apiUrl = process.env.EVOLUTION_API_URL;
+  const instanceName = process.env.EVOLUTION_INSTANCE_NAME;
+  const apiKey = process.env.EVOLUTION_API_KEY;
 
   console.log("🟡 [sendWhatsAppConfirmation] Env vars:", {
-    WHATSAPP_API_URL: apiUrl || "(vacío)",
-    WHATSAPP_INSTANCE_NAME: instanceName || "(vacío)",
-    WHATSAPP_API_TOKEN: apiKey ? `${apiKey.slice(0, 3)}...${apiKey.slice(-3)}` : "(vacío)",
+    EVOLUTION_API_URL: apiUrl || "(vacío)",
+    EVOLUTION_INSTANCE_NAME: instanceName || "(vacío)",
+    EVOLUTION_API_KEY: apiKey ? `${apiKey.slice(0, 3)}...${apiKey.slice(-3)}` : "(vacío)",
     phoneRecibido: phone,
     clientName,
     serviceName,
@@ -297,7 +297,7 @@ export async function sendWhatsAppConfirmation(
 
   if (!apiUrl || !instanceName || !apiKey) {
     console.error(
-      "❌ ERROR: Faltan variables de entorno WHATSAPP_API_URL, WHATSAPP_INSTANCE_NAME o WHATSAPP_API_TOKEN."
+      "❌ ERROR: Faltan variables de entorno EVOLUTION_API_URL, EVOLUTION_INSTANCE_NAME o EVOLUTION_API_KEY."
     );
     return false;
   }

@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 
 let adminNotificationSettings = {
   webhookUrl: "",
-  whatsappNumber: "+584121112233",
+  whatsappNumber: "+584120574955",
   soundEnabled: true,
   pushEnabled: true,
 };

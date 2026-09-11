@@ -60,10 +60,10 @@ export async function POST(request: Request) {
 
   console.log("🟡 [POST /api/bookings] Body recibido:", body);
   console.log("🟡 [POST /api/bookings] Env vars WhatsApp:", {
-    WHATSAPP_API_URL: process.env.WHATSAPP_API_URL || "(vacío)",
-    WHATSAPP_INSTANCE_NAME: process.env.WHATSAPP_INSTANCE_NAME || "(vacío)",
-    WHATSAPP_API_TOKEN: process.env.WHATSAPP_API_TOKEN
-      ? `${process.env.WHATSAPP_API_TOKEN.slice(0, 3)}...${process.env.WHATSAPP_API_TOKEN.slice(-3)}`
+    EVOLUTION_API_URL: process.env.EVOLUTION_API_URL || "(vacío)",
+    EVOLUTION_INSTANCE_NAME: process.env.EVOLUTION_INSTANCE_NAME || "(vacío)",
+    EVOLUTION_API_KEY: process.env.EVOLUTION_API_KEY
+      ? `${process.env.EVOLUTION_API_KEY.slice(0, 3)}...${process.env.EVOLUTION_API_KEY.slice(-3)}`
       : "(vacío)",
   });
 

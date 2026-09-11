@@ -116,6 +116,59 @@ export async function markBookingCancelled(bookingId: string): Promise<void> {
   if (error) throw error;
 }
 
+export interface BusySlot {
+  start: string;
+  end: string;
+}
+
+/**
+ * Devuelve los rangos horarios ocupados en Google Calendar para una fecha dada.
+ * La fecha debe tener formato 'YYYY-MM-DD'. Los rangos se devuelven como objetos
+ * con `start` y `end` en formato ISO 8601.
+ */
+export async function getBusySlotsForDate(date: string): Promise<BusySlot[]> {
+  const [year, month, day] = date.split('-').map(Number);
+  // Límites del día en hora local (UTC para no depender de la zona horaria del server)
+  const dayStart = new Date(Date.UTC(year, month - 1, day, 0, 0, 0, 0));
+  const dayEnd = new Date(Date.UTC(year, month - 1, day, 23, 59, 59, 999));
+
+  const events = await listCalendarEvents(dayStart.toISOString(), 250);
+
+  const busySlots: BusySlot[] = [];
+
+  for (const event of events) {
+    const startRaw = event?.start?.dateTime || event?.start?.date;
+    const endRaw = event?.end?.dateTime || event?.end?.date;
+    if (!startRaw || !endRaw) continue;
+
+    let startTime = new Date(startRaw).getTime();
+    let endTime = new Date(endRaw).getTime();
+
+    // Los eventos de día completo (sin dateTime) tienen fin exclusivo; restamos 1ms
+    // para que el rango sea [inicio, fin] inclusivo y no roce el día siguiente.
+    if (!event?.start?.dateTime) {
+      endTime = endTime - 1;
+    }
+
+    // Solamente considerar eventos que se solapan con el día solicitado
+    const dayStartMs = dayStart.getTime();
+    const dayEndMs = dayEnd.getTime();
+    if (endTime <= dayStartMs || startTime >= dayEndMs) continue;
+
+    const start = new Date(Math.max(startTime, dayStartMs));
+    const end = new Date(Math.min(endTime, dayEndMs));
+
+    if (end.getTime() > start.getTime()) {
+      busySlots.push({ start: start.toISOString(), end: end.toISOString() });
+    }
+  }
+
+  // Ordenar cronológicamente
+  busySlots.sort((a, b) => new Date(a.start).getTime() - new Date(b.start).getTime());
+
+  return busySlots;
+}
+
 export async function getBookingGoogleEventId(bookingId: string): Promise<string | null> {
   const admin = getAdminClient();
   if (!admin) return null;
