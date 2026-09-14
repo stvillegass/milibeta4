@@ -568,7 +568,7 @@ export default function ReservationModal({
       `💅 *Servicio:* ${service.name} (${option.name})\n` +
       `📅 *Fecha:* ${dateFormatted}\n` +
       `⏰ *Hora:* ${formatTime12h(selectedTime)}\n` +
-      `💵 *Total:* $${option.price.toFixed(2)}\n` +
+      `💵 *Total:* €${option.price.toFixed(2)}\n` +
       `💳 *Pago:* ${paymentMethod === "pagomovil" ? "Pago Móvil" : paymentMethod === "transferencia" ? "Transferencia" : "En Salón"}` +
       (referenceNumber ? `\n🔢 *Ref:* ${referenceNumber}` : "");
 
@@ -673,7 +673,7 @@ export default function ReservationModal({
                                 <span className="block font-bold text-xs text-brand-tertiary">{opt.name}</span>
                                 <span className="text-[10px] text-brand-tertiary/60">⏱️ {opt.duration || "60 min"}</span>
                               </div>
-                              <span className="font-bold text-sm text-brand-primary">${opt.price}</span>
+                              <span className="font-bold text-sm text-brand-primary">€${opt.price}</span>
                             </button>
                           ))}
                         </div>
@@ -804,7 +804,7 @@ export default function ReservationModal({
                   )}
                   <div className="flex-1 min-w-0">
                     <h4 className="font-serif italic font-normal text-lg text-brand-tertiary leading-tight">{service?.name}</h4>
-                    <p className="text-xs font-semibold text-brand-tertiary/70 mt-0.5">{option?.name} (${option?.price})</p>
+                    <p className="text-xs font-semibold text-brand-tertiary/70 mt-0.5">{option?.name} (€${option?.price})</p>
                     <p className="text-xs text-emerald-800 font-medium mt-0.5 capitalize">
                       📅 {selectedDate && format(selectedDate, "EEEE d 'de' MMMM", { locale: es })} - {formatTime12h(selectedTime)}
                     </p>
@@ -968,7 +968,7 @@ export default function ReservationModal({
                 disabled={isSubmitting}
                 className="w-full bg-brand-primary text-white py-3.5 rounded-xl font-bold text-xs uppercase tracking-widest flex justify-center items-center gap-2 shadow-sm active:scale-95 transition-all disabled:opacity-50"
               >
-                {isSubmitting ? "Procesando Reserva..." : `Confirmar Reserva ($${option?.price?.toFixed(2)})`}
+                {isSubmitting ? "Procesando Reserva..." : `Confirmar Reserva (€${option?.price?.toFixed(2)})`}
                 <ArrowRight className="w-4 h-4" />
               </button>
             </div>
@@ -1020,7 +1020,7 @@ export default function ReservationModal({
                   )}
                   <div className="flex justify-between items-center pt-1">
                     <span className="text-xs font-bold uppercase text-brand-tertiary">Total</span>
-                    <span className="font-bold text-base text-brand-primary">${option?.price?.toFixed(2)}</span>
+                    <span className="font-bold text-base text-brand-primary">€${option?.price?.toFixed(2)}</span>
                   </div>
                 </div>
 

@@ -208,11 +208,12 @@ function NavItem({ href, icon, label, active }: { href: string; icon: React.Reac
           <AnimatePresence mode="wait">
             {active && (
               <motion.span
-                initial={{ opacity: 0, width: 0, scale: 0.9 }}
-                animate={{ opacity: 1, width: "auto", scale: 1 }}
-                exit={{ opacity: 0, width: 0, scale: 0.9 }}
+                initial={{ opacity: 0, scaleX: 0, scale: 0.9 }}
+                animate={{ opacity: 1, scaleX: 1, scale: 1 }}
+                exit={{ opacity: 0, scaleX: 0, scale: 0.9 }}
                 transition={{ duration: 0.22, ease: [0.16, 1, 0.3, 1] }}
-                className="text-[11.5px] font-bold tracking-tight whitespace-nowrap overflow-hidden"
+                style={{ transformOrigin: "left" }}
+                className="text-[11.5px] font-bold tracking-tight whitespace-nowrap overflow-hidden origin-left"
               >
                 {label}
               </motion.span>

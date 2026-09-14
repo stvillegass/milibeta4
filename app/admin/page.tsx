@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
+import Image from "next/image";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   Calendar,
@@ -932,7 +933,7 @@ function CalendarTab() {
                       </a>
                     </div>
                     <p className="text-xs text-brand-tertiary/80">
-                      <strong>Servicio:</strong> {b.serviceName || "Servicio"} - {b.optionName || "Opción"} (${b.price})
+                      <strong>Servicio:</strong> {b.serviceName || "Servicio"} - {b.optionName || "Opción"} (€${b.price})
                     </p>
                   </div>
                   <div className="flex items-center justify-between sm:justify-end gap-4">
@@ -1487,7 +1488,7 @@ function SortableServiceItem({ service, onEdit, onDelete }: { service: Service; 
       </div>
       <div className="p-4 space-y-4 flex-1">
         <div className="flex gap-3.5 items-start">
-          <img src={service.imageUrl} alt={service.name} className="w-20 h-20 sm:w-24 sm:h-24 rounded-xl object-cover shrink-0 border border-brand-outline/10 shadow-xs" />
+          <Image src={service.imageUrl} alt={service.name} width={96} height={96} quality={90} className="w-20 h-20 sm:w-24 sm:h-24 rounded-xl object-cover shrink-0 border border-brand-outline/10 shadow-xs" />
           <div className="min-w-0 flex-1">
             <h4 className="font-serif font-bold text-base text-brand-tertiary leading-tight mb-1">{service.name}</h4>
             <p className="text-xs text-brand-tertiary/70 line-clamp-2 leading-relaxed">{service.description}</p>
@@ -1499,7 +1500,7 @@ function SortableServiceItem({ service, onEdit, onDelete }: { service: Service; 
             {service.options?.map((opt) => (
               <div key={opt.id} className="bg-white px-3 py-1.5 rounded-lg border border-brand-outline/15 flex items-center justify-between gap-3 text-xs shadow-2xs flex-1 min-w-[130px]">
                 <span className="font-medium text-brand-tertiary">{opt.name}</span>
-                <span className="font-bold text-brand-primary text-sm">${opt.price}</span>
+                <span className="font-bold text-brand-primary text-sm">€${opt.price}</span>
               </div>
             ))}
           </div>
@@ -2285,7 +2286,7 @@ function ClientInterfaceTab() {
             <h5 className="font-serif italic font-medium text-base text-brand-tertiary">💅 Categoría Manicure</h5>
             <div className="relative h-40 rounded-xl overflow-hidden shadow-sm border border-brand-outline/10">
               <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/30 to-transparent z-10" />
-              <img src={categoryImages.nails} alt="Preview Manicure" className="w-full h-full object-cover" referrerPolicy="no-referrer" />
+              <Image src={categoryImages.nails} alt="Preview Manicure" fill sizes="(max-width: 768px) 100vw, 50vw" quality={90} className="w-full h-full object-cover" />
               <div className="absolute bottom-0 left-0 p-4 z-20 w-full">
                 <span className="text-brand-primary-light text-[10px] font-semibold uppercase tracking-widest block">{siteConfig.nailsTag || "Especialidad"}</span>
                 <h6 className="text-white text-xl font-serif italic font-medium">{siteConfig.nailsTitle || "Manicure"}</h6>
@@ -2314,7 +2315,7 @@ function ClientInterfaceTab() {
             <h5 className="font-serif italic font-medium text-base text-brand-tertiary">👁️ Categoría Cejas & Pestañas</h5>
             <div className="relative h-40 rounded-xl overflow-hidden shadow-sm border border-brand-outline/10">
               <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/30 to-transparent z-10" />
-              <img src={categoryImages.lashes} alt="Preview Cejas y Pestañas" className="w-full h-full object-cover" referrerPolicy="no-referrer" />
+              <Image src={categoryImages.lashes} alt="Preview Cejas y Pestañas" fill sizes="(max-width: 768px) 100vw, 50vw" quality={90} className="w-full h-full object-cover" />
               <div className="absolute bottom-0 left-0 p-4 z-20 w-full">
                 <span className="text-brand-primary-light text-[10px] font-semibold uppercase tracking-widest block">{siteConfig.lashesTag || "Especialidad"}</span>
                 <h6 className="text-white text-xl font-serif italic font-medium">{siteConfig.lashesTitle || "Cejas y Pestañas"}</h6>

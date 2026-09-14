@@ -14,6 +14,7 @@ import {
 import ReservationModal from "@/components/ReservationModal";
 import { supabase } from "@/lib/supabase";
 import { useAuth } from "@/lib/AuthProvider";
+import Image from "next/image";
 
 interface LookbookItem {
   id: string;
@@ -325,11 +326,13 @@ export default function BookingPage() {
               className="group relative bg-stone-100 rounded-2xl overflow-hidden cursor-pointer transition-all duration-300 border border-brand-outline/10 hover:border-brand-primary/30 shadow-2xs hover:shadow-md flex flex-col"
             >
               <div className="relative aspect-square w-full overflow-hidden bg-stone-200">
-                <img
+                <Image
                   src={item.imageUrl}
                   alt={item.title}
+                  fill
+                  sizes="(max-width: 768px) 50vw, 33vw"
+                  quality={90}
                   className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500 ease-out"
-                  referrerPolicy="no-referrer"
                 />
                 <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-black/0 to-black/20 opacity-40 group-hover:opacity-75 transition-opacity duration-300" />
                 <div className="absolute top-2 left-2 z-10">

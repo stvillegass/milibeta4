@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react";
 import { ArrowRight } from "lucide-react";
 import Link from "next/link";
+import Image from "next/image";
 
 export default function HomePage() {
   const [categoryImages, setCategoryImages] = useState({
@@ -58,11 +59,14 @@ export default function HomePage() {
           className="block relative h-72 sm:h-80 lg:h-[420px] rounded-3xl overflow-hidden group transition-all duration-500 border border-brand-outline/20 hover:border-brand-primary/50 hover:shadow-2xl active:scale-[0.99]"
         >
           <div className="absolute inset-0 bg-gradient-to-t from-stone-950/90 via-stone-950/35 to-transparent z-10" />
-          <img
+          <Image
             src={categoryImages.nails}
             alt="Manicura"
+            fill
+            sizes="(max-width: 768px) 100vw, 50vw"
+            quality={90}
+            priority
             className="absolute inset-0 w-full h-full object-cover group-hover:scale-105 transition-transform duration-700 ease-out"
-            referrerPolicy="no-referrer"
           />
           <div className="absolute bottom-0 left-0 right-0 p-6 sm:p-8 lg:p-10 z-20 flex justify-between items-end">
             <div className="min-w-0 flex-1 mr-4">
@@ -87,11 +91,14 @@ export default function HomePage() {
           className="block relative h-72 sm:h-80 lg:h-[420px] rounded-3xl overflow-hidden group transition-all duration-500 border border-brand-outline/20 hover:border-brand-primary/50 hover:shadow-2xl active:scale-[0.99]"
         >
           <div className="absolute inset-0 bg-gradient-to-t from-stone-950/90 via-stone-950/35 to-transparent z-10" />
-          <img
+          <Image
             src={categoryImages.lashes}
             alt="Cejas y Pestañas"
+            fill
+            sizes="(max-width: 768px) 100vw, 50vw"
+            quality={90}
+            priority
             className="absolute inset-0 w-full h-full object-cover group-hover:scale-105 transition-transform duration-700 ease-out"
-            referrerPolicy="no-referrer"
           />
           <div className="absolute bottom-0 left-0 right-0 p-6 sm:p-8 lg:p-10 z-20 flex justify-between items-end">
             <div className="min-w-0 flex-1 mr-4">

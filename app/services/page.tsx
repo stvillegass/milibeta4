@@ -6,6 +6,7 @@ import { Service } from "@/types";
 import ReservationModal from "@/components/ReservationModal";
 import ServiceVectorHeader from "@/components/ServiceVectorHeader";
 import { supabase } from "@/lib/supabase";
+import Image from "next/image";
 
 function ServicesContent() {
   const [services, setServices] = useState<Service[]>([]);
@@ -207,11 +208,13 @@ function ServiceCard({
     <div className="bg-white rounded-3xl overflow-hidden border border-brand-outline/20 hover:border-brand-primary/30 transition-all duration-300">
       {service.imageUrl ? (
         <div className="h-44 relative overflow-hidden bg-brand-secondary-dark border-b border-brand-outline/10">
-          <img
+          <Image
             src={service.imageUrl}
             alt={service.name}
+            fill
+            sizes="(max-width: 768px) 100vw, 33vw"
+            quality={90}
             className="w-full h-full object-cover"
-            referrerPolicy="no-referrer"
           />
           {selectedOption?.duration && (
             <div className="absolute top-3.5 right-3.5 bg-[#1C1917]/85 backdrop-blur-md text-brand-primary border border-brand-primary/30 text-[10px] font-medium tracking-wider px-3 py-1 rounded-full shadow-xs flex items-center gap-1">
@@ -250,7 +253,7 @@ function ServiceCard({
               </div>
               <div className="text-right shrink-0">
                 <span className="text-base font-semibold text-brand-primary block tracking-tight">
-                  ${selectedOption.price.toFixed(2)}
+                  €${selectedOption.price.toFixed(2)}
                 </span>
               </div>
             </div>

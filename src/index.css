@@ -13,6 +13,12 @@
 }
 
 @layer base {
+  html {
+    text-rendering: optimizeLegibility;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+
   body {
     @apply bg-brand-secondary text-brand-tertiary antialiased font-sans selection:bg-brand-primary/20 selection:text-brand-tertiary;
   }
