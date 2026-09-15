@@ -1,10 +1,14 @@
 import { NextResponse } from "next/server";
 import { supabase } from "@/lib/supabase";
+import {
+  CACHE_TAGS,
+  NO_STORE_HEADERS,
+  getCachedPremiumEnabled,
+  getCachedSiteConfig,
+  revalidateAppCache,
+} from "@/lib/appCache";
 
-// Deshabilitar caché de Next.js: cada petición lee el estado real de Supabase
-export const dynamic = "force-dynamic";
-
-let siteConfig = {
+const DEFAULT_SITE_CONFIG = {
   studioName: "Milibeauty",
   studioSubtitle: "Estudio de lujo especializado en el cuidado y diseño de tus manos y mirada.",
   nailsTag: "Especialidad",
@@ -33,51 +37,91 @@ let siteConfig = {
     "¡Hola {nombre}! 🌸 Tu cita en Milibeauty quedó confirmada: {servicio} el {fecha} a las {hora}. ¡Te esperamos! 💅✨",
 };
 
+/**
+ * GET — configuración pública del sitio.
+ *
+ * Se sirve desde la caché de datos de Next (`unstable_cache`) con el tag
+ * `site-config` / `premium-enabled`: se evita golpear Supabase en cada visita y,
+ * cuando el panel guarda cambios, el tag se invalida al instante.
+ */
 export async function GET() {
-  try {
-    const { data, error } = await supabase
-      .from("app_settings")
-      .select("key, value")
-      .in("key", ["site_config", "premium_enabled"]);
+  let config: Record<string, unknown> = { ...DEFAULT_SITE_CONFIG };
 
-    if (!error && data && data.length > 0) {
-      data.forEach((item) => {
-        if (item.key === "site_config" && typeof item.value === "object" && item.value !== null) {
-          siteConfig = { ...siteConfig, ...item.value };
-        }
-        if (item.key === "premium_enabled") {
-          siteConfig.premiumEnabled = Boolean(item.value);
-        }
-      });
+  try {
+    const [stored, premium] = await Promise.all([
+      getCachedSiteConfig(),
+      getCachedPremiumEnabled(),
+    ]);
+
+    if (stored && typeof stored === "object" && !Array.isArray(stored)) {
+      config = { ...config, ...(stored as Record<string, unknown>) };
+    }
+    if (premium !== null && premium !== undefined) {
+      config.premiumEnabled = premium === true || premium === "true";
     }
   } catch (e) {
     console.error("Error reading site_config from Supabase:", e);
   }
 
-  return NextResponse.json(siteConfig);
+  return NextResponse.json(config, { headers: NO_STORE_HEADERS });
 }
 
 export async function POST(request: Request) {
   try {
     const body = await request.json();
-    if (body) {
-      siteConfig = { ...siteConfig, ...body };
-
-      // Guardar en Supabase app_settings
-      await Promise.all([
-        supabase.from("app_settings").upsert(
-          { key: "site_config", value: siteConfig },
-          { onConflict: "key" }
-        ),
-        supabase.from("app_settings").upsert(
-          { key: "premium_enabled", value: Boolean(siteConfig.premiumEnabled) },
-          { onConflict: "key" }
-        ),
-      ]);
+    if (!body || typeof body !== "object" || Array.isArray(body)) {
+      return NextResponse.json(
+        { error: "Datos de configuración inválidos" },
+        { status: 400, headers: NO_STORE_HEADERS }
+      );
     }
+
+    const current = (await getCachedSiteConfig()) as Record<string, unknown> | null;
+    const merged = {
+      ...DEFAULT_SITE_CONFIG,
+      ...(current && typeof current === "object" ? current : {}),
+      ...body,
+    };
+
+    // Guardar en Supabase app_settings (fuente de verdad persistente)
+    const [siteRes, premiumRes] = await Promise.all([
+      supabase
+        .from("app_settings")
+        .upsert({ key: "site_config", value: merged }, { onConflict: "key" }),
+      supabase
+        .from("app_settings")
+        .upsert(
+          { key: "premium_enabled", value: Boolean(merged.premiumEnabled) },
+          { onConflict: "key" }
+        ),
+    ]);
+
+    if (siteRes.error || premiumRes.error) {
+      console.error(
+        "[site-config] Error al persistir:",
+        siteRes.error?.message || premiumRes.error?.message
+      );
+      return NextResponse.json(
+        { error: "No se pudo guardar la configuración" },
+        { status: 500, headers: NO_STORE_HEADERS }
+      );
+    }
+
+    // Invalidar el caché al instante para que la vista pública se actualice ya
+    const revalidated = revalidateAppCache([
+      CACHE_TAGS.siteConfig,
+      CACHE_TAGS.premiumEnabled,
+      CACHE_TAGS.categoryImages,
+    ]);
+
+    return NextResponse.json(merged, {
+      headers: { ...NO_STORE_HEADERS, "X-Revalidated-Tags": revalidated.join(",") },
+    });
   } catch (e) {
     console.error("Error saving site_config to Supabase:", e);
+    return NextResponse.json(
+      { error: "Error al guardar la configuración" },
+      { status: 500, headers: NO_STORE_HEADERS }
+    );
   }
-
-  return NextResponse.json(siteConfig);
-}
+}

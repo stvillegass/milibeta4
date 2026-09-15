@@ -73,31 +73,28 @@ function ServicesContent() {
 
     const loadServices = async () => {
       try {
-        const { data, error } = await supabase
-          .from("services")
-          .select("*, service_options(*)")
-          .order("order_index", { ascending: true });
+        // Catálogo cacheado con tag `services-catalog` (revalidación de respaldo
+        // cada 5 min). El panel invalida el tag al guardar, así que el cambio se
+        // refleja al instante sin golpear Supabase en cada visita.
+        const res = await fetch("/api/catalog", { cache: "no-store" });
+        if (!res.ok) throw new Error(`Catálogo no disponible (${res.status})`);
 
-        if (error) {
-          console.error("Error fetching services:", error);
-          if (!cancelled) setServices([]);
-          return;
-        }
-
-        const mapped: Service[] = (data || []).map((s: any) => ({
+        const payload = await res.json();
+        const mapped: Service[] = (payload?.services || []).map((s: any) => ({
           id: s.id,
           name: s.name,
           category: s.category,
-          description: s.description,
-          imageUrl: s.image_url,
-          order: s.order_index,
-          isPremium: s.is_premium,
-          options: (s.service_options || []).map((o: any) => ({
+          description: s.description || "",
+          imageUrl: s.imageUrl || "",
+          order: s.order ?? 0,
+          isPremium: Boolean(s.isPremium),
+          options: (s.options || []).map((o: any) => ({
             id: o.id,
             name: o.name,
             price: Number(o.price),
-            duration: o.duration_minutes ? `${o.duration_minutes} min` : "60 min",
-            isPremium: o.name.toLowerCase().includes("premium"),
+            duration: o.duration || "60 min",
+            isPremium: Boolean(o.isPremium),
+            description: o.description || "",
           })),
         }));
 
@@ -253,7 +250,7 @@ function ServiceCard({
               </div>
               <div className="text-right shrink-0">
                 <span className="text-base font-semibold text-brand-primary block tracking-tight">
-                  €${selectedOption.price.toFixed(2)}
+                  €{selectedOption.price.toFixed(2)}
                 </span>
               </div>
             </div>

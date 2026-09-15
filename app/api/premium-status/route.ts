@@ -1,26 +1,26 @@
 import { NextResponse } from "next/server";
-import { supabase } from "@/lib/supabase";
+import {
+  NO_STORE_HEADERS,
+  getCachedPremiumEnabled,
+} from "@/lib/appCache";
 
-// Nunca cachear — leer siempre el valor real de la DB
+// Respuesta siempre fresca: el valor se lee de la caché de datos (tag
+// `premium-enabled`) que el panel invalida al instante cuando guarda cambios.
 export const dynamic = "force-dynamic";
 
 export async function GET() {
   try {
-    const { data, error } = await supabase
-      .from("app_settings")
-      .select("value")
-      .eq("key", "premium_enabled")
-      .single();
+    const stored = await getCachedPremiumEnabled();
 
-    if (error || !data) {
+    if (stored === null || stored === undefined) {
       // Fallback seguro: si no existe la clave, asumir habilitado
-      return NextResponse.json({ premiumEnabled: true });
+      return NextResponse.json({ premiumEnabled: true }, { headers: NO_STORE_HEADERS });
     }
 
     // Supabase devuelve el valor como JSONB (puede ser bool nativo o JSON bool)
-    const premiumEnabled = data.value === true || data.value === "true";
-    return NextResponse.json({ premiumEnabled });
+    const premiumEnabled = stored === true || stored === "true";
+    return NextResponse.json({ premiumEnabled }, { headers: NO_STORE_HEADERS });
   } catch {
-    return NextResponse.json({ premiumEnabled: true });
+    return NextResponse.json({ premiumEnabled: true }, { headers: NO_STORE_HEADERS });
   }
 }

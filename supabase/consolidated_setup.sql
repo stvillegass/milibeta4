@@ -74,9 +74,14 @@ CREATE TABLE IF NOT EXISTS public.bookings (
     status TEXT NOT NULL DEFAULT 'pending' CHECK (status IN ('pending', 'confirmed', 'cancelled', 'completed')),
     google_event_id TEXT, -- ID del evento de Google Calendar
     synced_to_calendar BOOLEAN DEFAULT FALSE,
+    combo_services JSONB DEFAULT '[]'::jsonb, -- Servicios combinados (Manicure + Pedicure + Cejas)
     created_at TIMESTAMPTZ DEFAULT NOW(),
     updated_at TIMESTAMPTZ DEFAULT NOW()
 );
+
+-- Migración para bases de datos ya existentes: añade la columna si falta
+ALTER TABLE public.bookings
+    ADD COLUMN IF NOT EXISTS combo_services JSONB DEFAULT '[]'::jsonb;
 
 -- ==========================================
 -- 4. POLÍTICAS DE SEGURIDAD (Row Level Security)

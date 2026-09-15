@@ -39,6 +39,7 @@ import {
   AlertCircle,
   MapPin,
   Navigation,
+  Plus,
 } from "lucide-react";
 import { Service } from "@/types";
 import LocationModal from "./LocationModal";
@@ -48,6 +49,46 @@ import { formatTime12h } from "@/lib/timeFormat";
 // Imagen de respaldo cuando un servicio no tiene image_url (nulo/vacío)
 const FALLBACK_SERVICE_IMAGE =
   "https://images.unsplash.com/photo-1604654894610-df63bc536371?q=80&w=1000&auto=format&fit=crop";
+
+// Servicio adicional agregado a la reserva (combinaciones: Manicure / Pedicure / Cejas)
+interface ComboServiceItem {
+  serviceId: string;
+  serviceName: string;
+  category: string;
+  optionId: string;
+  modality: string;
+  price: number;
+  durationMin: number;
+}
+
+const MAX_COMBINED = 3;
+
+// Etiquetas legibles de los grupos combinables
+const GROUP_LABELS: Record<string, string> = {
+  manicure: "Manicure",
+  pedicure: "Pedicure",
+  cejas: "Cejas",
+};
+
+// Determina el grupo lógico de un servicio para permitir combinaciones válidas
+// (Manicure + Pedicure + Cejas) evitando duplicar el mismo tipo de servicio.
+const serviceGroupOf = (s: { name?: string; category?: string }): string => {
+  const n = (s?.name || "").toLowerCase();
+  if (n.includes("pedicur") || n.includes("pies")) return "pedicure";
+  if (
+    n.includes("ceja") ||
+    n.includes("pestañ") ||
+    n.includes("pestan") ||
+    n.includes("lash") ||
+    n.includes("lifting") ||
+    n.includes("brow") ||
+    s?.category === "lashes"
+  ) {
+    return "cejas";
+  }
+  if (n.includes("manicur") || s?.category === "nails") return "manicure";
+  return s?.category || "otros";
+};
 
 interface ReservationModalProps {
   isOpen?: boolean;
@@ -106,6 +147,11 @@ export default function ReservationModal({
 
   // Estado dedicado para el toggle premium — sincronizado via Supabase Realtime
   const [isPremiumEnabled, setIsPremiumEnabled] = useState(true);
+
+  // ── Servicios combinados (agregar otro servicio) ─────────────────────
+  const [extraServices, setExtraServices] = useState<ComboServiceItem[]>([]);
+  const [isComboOpen, setIsComboOpen] = useState(false);
+  const [comboPick, setComboPick] = useState<Service | null>(null);
 
   useEffect(() => {
     // ── 1. Obtener el valor inicial de premium_enabled ───────────────────
@@ -192,30 +238,32 @@ export default function ReservationModal({
   useEffect(() => {
     const fetchData = async () => {
       try {
-        const { data: sData, error: sErr } = await supabase
-          .from("services")
-          .select("*, service_options(*)")
-          .order("order_index", { ascending: true });
+        // Catálogo servido desde la caché de datos de Next (tag `services-catalog`):
+        // no se golpea Supabase en cada apertura y el panel invalida el tag al
+        // guardar/eliminar/reordenar servicios, por lo que aquí llegan datos vigentes.
+        const catalogRes = await fetch("/api/catalog", { cache: "no-store" });
+        const catalogData = await catalogRes.json();
+        const catalogList: any[] = Array.isArray(catalogData?.services)
+          ? catalogData.services
+          : [];
 
-        if (sErr) console.error("Error fetching services:", sErr);
-
-        const mappedServices: Service[] =
-          sData && sData.length > 0
-            ? sData.map((s: any) => ({
-                id: s.id,
-                name: s.name,
-                category: s.category,
-                description: s.description,
-                imageUrl: s.image_url,
-                order: s.order_index,
-                options: (s.service_options || []).map((o: any) => ({
-                  id: o.id,
-                  name: o.name,
-                  price: Number(o.price),
-                  duration: o.duration_minutes ? `${o.duration_minutes} min` : "60 min",
-                })),
-              }))
-            : [];
+        const mappedServices: Service[] = catalogList.map((s: any) => ({
+          id: s.id,
+          name: s.name,
+          category: s.category,
+          description: s.description,
+          imageUrl: s.imageUrl,
+          order: s.order,
+          isPremium: Boolean(s.isPremium),
+          options: (s.options || []).map((o: any) => ({
+            id: o.id,
+            name: o.name,
+            price: Number(o.price),
+            duration: o.duration || "60 min",
+            description: o.description,
+            isPremium: Boolean(o.isPremium),
+          })),
+        }));
 
         setAllServices(mappedServices);
 
@@ -470,7 +518,10 @@ export default function ReservationModal({
       startTime.setHours(hours, minutes, 0, 0);
 
       const durationStr = option.duration || "60";
-      const durationMinutes = parseInt(durationStr) || 60;
+      const primaryDurationMinutes = parseInt(durationStr) || 60;
+      // Duración total = servicio principal + servicios adicionales combinados
+      const extrasDurationMinutes = extraServices.reduce((sum, x) => sum + x.durationMin, 0);
+      const durationMinutes = primaryDurationMinutes + extrasDurationMinutes;
       const endTime = new Date(startTime.getTime() + durationMinutes * 60000);
 
       // ─── VALIDACIÓN ESTRICTA: PREVENCIÓN DE DOBLE AGENDAMIENTO ───
@@ -516,6 +567,17 @@ export default function ReservationModal({
           service_option_id: option.id,
           service_name: activeService.name,
           option_name: option.name,
+          combo_services: extraServices.map((x) => ({
+            service_id: x.serviceId,
+            service_name: x.serviceName,
+            option_name: x.modality,
+            price: x.price,
+            duration_minutes: x.durationMin,
+          })),
+          total_price:
+            (Number(option.price) || 0) +
+            extraServices.reduce((sum, x) => sum + x.price, 0),
+          duration_minutes: durationMinutes,
           start_time: startTime.toISOString(),
           end_time: endTime.toISOString(),
           status: "confirmed",
@@ -540,7 +602,10 @@ export default function ReservationModal({
         body: JSON.stringify({
           bookingId: data.id,
           clientName: name.trim(),
-          serviceName: activeService.name,
+          serviceName: [
+            activeService.name,
+            ...extraServices.map((x) => x.serviceName),
+          ].join(" + "),
           optionName: option.name,
           startTime: startTime.toISOString(),
           endTime: endTime.toISOString(),
@@ -561,14 +626,19 @@ export default function ReservationModal({
     if (!selectedDate || !selectedTime || !service || !option) return;
 
     const dateFormatted = format(selectedDate, "EEEE, d 'de' MMMM", { locale: es });
+    const extrasTotal = extraServices.reduce((sum, x) => sum + x.price, 0);
+    const grandTotal = (Number(option.price) || 0) + extrasTotal;
+    const extrasText = extraServices
+      .map((x) => `+ ${x.serviceName} (${x.modality}) - €${x.price}`)
+      .join("\n");
     const message =
       `*¡Hola Milibeauty!* Quisiera confirmar mi reserva:\n\n` +
       `👤 *Cliente:* ${name}\n` +
       `📱 *Teléfono:* ${phone}\n` +
-      `💅 *Servicio:* ${service.name} (${option.name})\n` +
+      `💅 *Servicio:* ${service.name} (${option.name})\n${extrasText ? extrasText + "\n" : ""}` +
       `📅 *Fecha:* ${dateFormatted}\n` +
-      `⏰ *Hora:* ${formatTime12h(selectedTime)}\n` +
-      `💵 *Total:* €${option.price.toFixed(2)}\n` +
+      `⏰ *Hora:* ${formatTime12h(selectedTime)} (${totalDurationMin} min)\n` +
+      `💵 *Total:* €${grandTotal.toFixed(2)}\n` +
       `💳 *Pago:* ${paymentMethod === "pagomovil" ? "Pago Móvil" : paymentMethod === "transferencia" ? "Transferencia" : "En Salón"}` +
       (referenceNumber ? `\n🔢 *Ref:* ${referenceNumber}` : "");
 
@@ -583,6 +653,79 @@ export default function ReservationModal({
       router.back();
     }
   };
+
+  // ── Derivados de servicios combinados ─────────────────────────
+  const primaryOptionDurationMin = option ? (parseInt(option.duration || "60") || 60) : 60;
+
+  const combinedSummary: ComboServiceItem[] = [
+    ...(service && option
+      ? [
+          {
+            serviceId: service.id,
+            serviceName: service.name,
+            category: service.category,
+            optionId: option.id,
+            modality: option.name,
+            price: Number(option.price) || 0,
+            durationMin: primaryOptionDurationMin,
+          },
+        ]
+      : []),
+    ...extraServices,
+  ];
+
+  const totalPrice = combinedSummary.reduce((sum, x) => sum + x.price, 0);
+  const totalDurationMin = combinedSummary.reduce((sum, x) => sum + x.durationMin, 0);
+
+  const selectedServiceIds = new Set(combinedSummary.map((x) => x.serviceId));
+  const selectedGroups = new Set(
+    combinedSummary.map((x) => serviceGroupOf({ name: x.serviceName, category: x.category }))
+  );
+  const candidateServices = allServices.filter(
+    (s) => !selectedServiceIds.has(s.id) && !selectedGroups.has(serviceGroupOf(s))
+  );
+  const canAddMore = combinedSummary.length < MAX_COMBINED;
+
+  // Categorías complementarias aún disponibles (para la etiqueta del botón)
+  const complementaryLabels = Array.from(
+    new Set(candidateServices.map((s) => GROUP_LABELS[serviceGroupOf(s)] || "Servicio"))
+  );
+
+  const handleConfirmCombo = (s: Service, o: any) => {
+    if (selectedServiceIds.has(s.id)) return;
+    if (selectedGroups.has(serviceGroupOf(s))) return;
+    setExtraServices((prev) => [
+      ...prev,
+      {
+        serviceId: s.id,
+        serviceName: s.name,
+        category: s.category,
+        optionId: o.id,
+        modality: o.name,
+        price: Number(o.price) || 0,
+        durationMin: parseInt(o.duration || "60") || 60,
+      },
+    ]);
+    setComboPick(null);
+    setIsComboOpen(false);
+  };
+
+  const handleRemoveExtra = (idx: number) => {
+    setExtraServices((prev) => prev.filter((_, i) => i !== idx));
+  };
+
+  // Mantiene las combinaciones coherentes si cambia el servicio principal
+  useEffect(() => {
+    if (!service) return;
+    const primaryGroup = serviceGroupOf(service);
+    setExtraServices((prev) =>
+      prev.filter(
+        (x) =>
+          x.serviceId !== service.id &&
+          serviceGroupOf({ name: x.serviceName, category: x.category }) !== primaryGroup
+      )
+    );
+  }, [service]);
 
   if (!isOpen) return null;
 
@@ -673,13 +816,22 @@ export default function ReservationModal({
                                 <span className="block font-bold text-xs text-brand-tertiary">{opt.name}</span>
                                 <span className="text-[10px] text-brand-tertiary/60">⏱️ {opt.duration || "60 min"}</span>
                               </div>
-                              <span className="font-bold text-sm text-brand-primary">€${opt.price}</span>
+                              <span className="font-bold text-sm text-brand-primary">€{opt.price}</span>
                             </button>
                           ))}
                         </div>
                       </div>
                     );
                   })()}
+
+                  {extraServices.length > 0 && (
+                    <div className="pt-2 border-t border-brand-outline/10 flex items-center justify-between gap-2">
+                      <span className="text-[10px] font-semibold uppercase tracking-widest text-brand-tertiary/60">
+                        {combinedSummary.length} servicios · ⏱️ {totalDurationMin} min
+                      </span>
+                      <span className="text-sm font-bold text-brand-primary">€{totalPrice.toFixed(2)}</span>
+                    </div>
+                  )}
                 </div>
               )}
 
@@ -763,6 +915,137 @@ export default function ReservationModal({
                 )}
               </section>
 
+              {/* ── Servicios combinados (Manicure + Pedicure + Cejas) ── */}
+              {(extraServices.length > 0 || (canAddMore && candidateServices.length > 0)) && (
+                <section className="bg-white/60 backdrop-blur-md p-3 sm:p-4 rounded-3xl border border-brand-primary/20 space-y-3">
+                  <div className="flex items-center justify-between gap-2">
+                    <h3 className="text-xs font-semibold uppercase tracking-[0.18em] text-brand-tertiary/70 flex items-center gap-2">
+                      <Sparkles className="w-4 h-4 text-brand-primary stroke-[1.5]" /> Combina tus servicios
+                    </h3>
+                    {extraServices.length > 0 && (
+                      <span className="text-[10px] font-bold text-brand-primary whitespace-nowrap">
+                        €{totalPrice.toFixed(2)} · ⏱️ {totalDurationMin} min
+                      </span>
+                    )}
+                  </div>
+
+                  {extraServices.length > 0 && (
+                    <div className="space-y-2">
+                      {extraServices.map((extra, idx) => (
+                        <div
+                          key={`${extra.serviceId}-${idx}`}
+                          className="flex items-center justify-between gap-2 bg-white rounded-xl border border-brand-primary/20 px-3 py-2"
+                        >
+                          <div className="min-w-0">
+                            <p className="text-xs font-bold text-brand-tertiary truncate">{extra.serviceName}</p>
+                            <p className="text-[10px] text-brand-tertiary/60 truncate">
+                              {extra.modality} · €{extra.price} · {extra.durationMin} min
+                            </p>
+                          </div>
+                          <button
+                            onClick={() => handleRemoveExtra(idx)}
+                            aria-label={`Quitar ${extra.serviceName}`}
+                            className="p-1.5 rounded-full text-brand-tertiary/50 hover:text-rose-500 hover:bg-rose-50 transition-colors shrink-0"
+                          >
+                            <X className="w-4 h-4" />
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                  {canAddMore && candidateServices.length > 0 && !isComboOpen && (
+                    <button
+                      onClick={() => {
+                        setComboPick(null);
+                        setIsComboOpen(true);
+                      }}
+                      className="w-full flex flex-col items-center justify-center gap-0.5 py-2.5 px-3 rounded-xl border border-brand-primary/20 bg-brand-primary/5 text-brand-primary hover:bg-brand-primary/10 transition-colors"
+                    >
+                      <span className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wider">
+                        <Plus className="w-4 h-4" />
+                        {extraServices.length === 0 ? "Agregar otro servicio" : "Agregar otro servicio más"}
+                      </span>
+                      {complementaryLabels.length > 0 && (
+                        <span className="text-[10px] font-medium text-brand-primary/70">
+                          {complementaryLabels.join(" · ")}
+                        </span>
+                      )}
+                    </button>
+                  )}
+
+                  {isComboOpen && (
+                    <div className="space-y-2">
+                      <div className="grid grid-cols-1 gap-2">
+                        {candidateServices.map((candidate) => {
+                          const candidateOptions = isPremiumEnabled
+                            ? candidate.options
+                            : candidate.options.filter(
+                                (o: any) => !o.name.toLowerCase().includes("premium")
+                              );
+                          if (candidateOptions.length === 0) return null;
+                          const isPicked = comboPick?.id === candidate.id;
+                          return (
+                            <div
+                              key={candidate.id}
+                              className="rounded-xl border border-brand-outline/15 bg-white/70 overflow-hidden"
+                            >
+                              <button
+                                onClick={() => setComboPick(isPicked ? null : candidate)}
+                                className="w-full flex items-center justify-between gap-2 px-3 py-2.5 text-left"
+                              >
+                                <span className="min-w-0">
+                                  <span className="block text-xs font-bold text-brand-tertiary truncate">
+                                    {candidate.name}
+                                  </span>
+                                  <span className="block text-[10px] text-brand-tertiary/55">
+                                    {GROUP_LABELS[serviceGroupOf(candidate)] || "Servicio"}
+                                  </span>
+                                </span>
+                                {isPicked ? (
+                                  <ChevronUp className="w-4 h-4 text-brand-primary shrink-0" />
+                                ) : (
+                                  <ChevronDown className="w-4 h-4 text-brand-tertiary/40 shrink-0" />
+                                )}
+                              </button>
+                              {isPicked && (
+                                <div className="grid grid-cols-2 gap-2 px-2 pb-2">
+                                  {candidateOptions.map((opt: any) => (
+                                    <button
+                                      key={opt.id}
+                                      onClick={() => handleConfirmCombo(candidate, opt)}
+                                      className="p-2 rounded-xl text-left border border-brand-outline/10 bg-white hover:border-brand-primary/40 transition-all"
+                                    >
+                                      <span className="block font-bold text-[11px] text-brand-tertiary truncate">
+                                        {opt.name}
+                                      </span>
+                                      <span className="block text-[9px] text-brand-tertiary/60">
+                                        ⏱️ {opt.duration || "60 min"}
+                                      </span>
+                                      <span className="block font-bold text-xs text-brand-primary mt-0.5">
+                                        €{opt.price}
+                                      </span>
+                                    </button>
+                                  ))}
+                                </div>
+                              )}
+                            </div>
+                          );
+                        })}
+                      </div>
+
+                      <button
+                        onClick={() => {
+                          setIsComboOpen(false);
+                          setComboPick(null);
+                        }}
+                        className="w-full text-[11px] font-medium text-brand-tertiary/60 hover:text-brand-tertiary py-1.5"
+                      >
+                        Cancelar
+                      </button>
+                    </div>
+                  )}
+                </section>
+              )}
               <div>
                 <button
                   onClick={handleProceedToCheckout}
@@ -804,12 +1087,32 @@ export default function ReservationModal({
                   )}
                   <div className="flex-1 min-w-0">
                     <h4 className="font-serif italic font-normal text-lg text-brand-tertiary leading-tight">{service?.name}</h4>
-                    <p className="text-xs font-semibold text-brand-tertiary/70 mt-0.5">{option?.name} (€${option?.price})</p>
+                    <p className="text-xs font-semibold text-brand-tertiary/70 mt-0.5">{option?.name} (€{option?.price})</p>
                     <p className="text-xs text-emerald-800 font-medium mt-0.5 capitalize">
                       📅 {selectedDate && format(selectedDate, "EEEE d 'de' MMMM", { locale: es })} - {formatTime12h(selectedTime)}
                     </p>
                   </div>
                 </div>
+
+                {extraServices.length > 0 && (
+                  <div className="space-y-1.5 pt-2 border-t border-brand-outline/15">
+                    {extraServices.map((extra, idx) => (
+                      <div key={`${extra.serviceId}-${idx}`} className="flex items-center justify-between gap-2">
+                        <span className="text-xs text-brand-tertiary truncate">
+                          + {extra.serviceName}
+                          <span className="text-brand-tertiary/50"> ({extra.modality})</span>
+                        </span>
+                        <span className="text-xs font-semibold text-brand-primary shrink-0">€{extra.price}</span>
+                      </div>
+                    ))}
+                    <div className="flex items-center justify-between pt-1">
+                      <span className="text-[10px] font-semibold uppercase tracking-widest text-brand-tertiary/60">
+                        Total · ⏱️ {totalDurationMin} min
+                      </span>
+                      <span className="text-sm font-bold text-brand-primary">€{totalPrice.toFixed(2)}</span>
+                    </div>
+                  </div>
+                )}
               </section>
 
               <section className="bg-white p-5 rounded-3xl border border-brand-outline/20 space-y-4">
@@ -968,7 +1271,7 @@ export default function ReservationModal({
                 disabled={isSubmitting}
                 className="w-full bg-brand-primary text-white py-3.5 rounded-xl font-bold text-xs uppercase tracking-widest flex justify-center items-center gap-2 shadow-sm active:scale-95 transition-all disabled:opacity-50"
               >
-                {isSubmitting ? "Procesando Reserva..." : `Confirmar Reserva (€${option?.price?.toFixed(2)})`}
+                {isSubmitting ? "Procesando Reserva..." : `Confirmar Reserva (€${totalPrice.toFixed(2)})`}
                 <ArrowRight className="w-4 h-4" />
               </button>
             </div>
@@ -1000,6 +1303,23 @@ export default function ReservationModal({
                     <span className="text-[10px] font-bold uppercase text-brand-tertiary/50">Modalidad</span>
                     <span className="font-bold text-xs text-brand-tertiary">{option?.name}</span>
                   </div>
+                  {extraServices.map((extra, idx) => (
+                    <div
+                      key={`${extra.serviceId}-${idx}`}
+                      className="flex justify-between items-center border-b border-brand-outline/10 pb-1.5"
+                    >
+                      <span className="text-[10px] font-bold uppercase text-brand-tertiary/50">
+                        Servicio extra
+                      </span>
+                      <span className="font-bold text-xs text-brand-tertiary truncate max-w-[60%] text-right">
+                        {extra.serviceName} ({extra.modality}) · €{extra.price}
+                      </span>
+                    </div>
+                  ))}
+                  <div className="flex justify-between items-center border-b border-brand-outline/10 pb-1.5">
+                    <span className="text-[10px] font-bold uppercase text-brand-tertiary/50">Duración</span>
+                    <span className="font-bold text-xs text-brand-tertiary">{totalDurationMin} min</span>
+                  </div>
                   <div className="flex justify-between items-center border-b border-brand-outline/10 pb-1.5">
                     <span className="text-[10px] font-bold uppercase text-brand-tertiary/50">Fecha y Hora</span>
                     <span className="font-bold text-xs text-emerald-700 capitalize">
@@ -1020,7 +1340,7 @@ export default function ReservationModal({
                   )}
                   <div className="flex justify-between items-center pt-1">
                     <span className="text-xs font-bold uppercase text-brand-tertiary">Total</span>
-                    <span className="font-bold text-base text-brand-primary">€${option?.price?.toFixed(2)}</span>
+                    <span className="font-bold text-base text-brand-primary">€{totalPrice.toFixed(2)}</span>
                   </div>
                 </div>
 

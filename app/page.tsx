@@ -45,46 +45,60 @@ export default function HomePage() {
   useEffect(() => {
     let cancelled = false;
 
-    // Sin caché: siempre traer la portada actual desde la API/Supabase
-    fetch("/api/categories/images", { cache: "no-store" })
-      .then((res) => res.json())
-      .then((data) => {
-        if (cancelled) return;
-        if (data?.nails || data?.lashes) {
-          setCategoryImages({ nails: data.nails, lashes: data.lashes });
+    const loadHomeData = async () => {
+      // 1) Portadas de categoría: la API las sirve desde la caché de datos con el
+      //    tag `category-images` (revalidación de respaldo cada 5 min). El panel
+      //    invalida el tag al guardar, por lo que el cambio se refleja al instante.
+      let coversLoaded = false;
+      try {
+        const res = await fetch("/api/categories/images", { cache: "no-store" });
+        const data = await res.json();
+        if (!cancelled) {
+          if (data?.nails || data?.lashes) {
+            coversLoaded = true;
+            setCategoryImages({ nails: data.nails, lashes: data.lashes });
+          }
+          if (typeof data?.updatedAt === "number" && data.updatedAt > 0) {
+            setUpdatedAt(data.updatedAt);
+          }
         }
-        if (typeof data?.updatedAt === "number" && data.updatedAt > 0) {
-          setUpdatedAt(data.updatedAt);
-        }
-      })
-      .catch(console.error);
-
-    // Capa extra de seguridad: leer la portada directamente de Supabase, que es la
-    // fuente de verdad. Así la actualización del panel se refleja sí o sí, incluso
-    // si la ruta API tuviera caché o quedara un estado en memoria desactualizado.
-    (async () => {
-      const { data } = await supabase
-        .from("app_settings")
-        .select("value")
-        .eq("key", "category_images")
-        .maybeSingle();
-      if (cancelled || !data?.value) return;
-      const val = data.value as { nails?: string; lashes?: string };
-      if (val.nails || val.lashes) {
-        setCategoryImages({ nails: val.nails || "", lashes: val.lashes || "" });
-        // app_settings no tiene updated_at: marca local como cache-buster de la URL
-        setUpdatedAt(Date.now());
+      } catch (e) {
+        console.error(e);
       }
-    })().catch(console.error);
 
-    fetch("/api/site-config", { cache: "no-store" })
-      .then((res) => res.json())
-      .then((data) => {
+      // 2) Fallback: si la API no respondió, leer la fuente de verdad en Supabase
+      //    para que la portada jamás se quede sin actualizar.
+      if (!cancelled && !coversLoaded) {
+        try {
+          const { data } = await supabase
+            .from("app_settings")
+            .select("value")
+            .eq("key", "category_images")
+            .maybeSingle();
+          const val = data?.value as { nails?: string; lashes?: string } | undefined;
+          if (!cancelled && val && (val.nails || val.lashes)) {
+            setCategoryImages({ nails: val.nails || "", lashes: val.lashes || "" });
+            // app_settings no tiene updated_at: marca local como cache-buster de la URL
+            setUpdatedAt(Date.now());
+          }
+        } catch (e) {
+          console.error(e);
+        }
+      }
+
+      // 3) Configuración del sitio: cacheada con el tag `site-config`
+      try {
+        const res = await fetch("/api/site-config", { cache: "no-store" });
+        const data = await res.json();
         if (!cancelled && data) {
           setSiteConfig((prev) => ({ ...prev, ...data }));
         }
-      })
-      .catch(console.error);
+      } catch (e) {
+        console.error(e);
+      }
+    };
+
+    loadHomeData();
 
     return () => {
       cancelled = true;

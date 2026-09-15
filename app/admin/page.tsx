@@ -61,6 +61,33 @@ import {
 } from "date-fns";
 import { es } from "date-fns/locale";
 
+/**
+ * Invalida el caché público (configuración + catálogos) tras escribir en Supabase
+ * desde el panel. Requiere sesión de administrador: el endpoint /api/revalidate
+ * valida el token y solo acepta tags de la lista blanca.
+ */
+async function invalidatePublicCache(tags: string[]) {
+  try {
+    const {
+      data: { session },
+    } = await supabase.auth.getSession();
+    const token = session?.access_token;
+    if (!token) return;
+
+    await fetch("/api/revalidate", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${token}`,
+      },
+      body: JSON.stringify({ tags }),
+    });
+  } catch (e) {
+    // Nunca debe romper el flujo de guardado del panel
+    console.error("No se pudo invalidar el caché público:", e);
+  }
+}
+
 export default function AdminPage() {
   const router = useRouter();
   const { user, isAdmin, isAuthLoading } = useAuth();
@@ -651,6 +678,16 @@ function CalendarTab() {
           const startDate = new Date(b.start_time);
           const dateStr = format(startDate, "yyyy-MM-dd");
           const timeStr = format(startDate, "HH:mm");
+          // Servicios combinados persistidos en bookings.combo_services (JSONB)
+          const rawCombos: any[] = Array.isArray(b.combo_services) ? b.combo_services : [];
+          const comboServices = rawCombos.map((c: any) => ({
+            serviceName: c?.service_name || "Servicio",
+            optionName: c?.option_name || "",
+            price: Number(c?.price) || 0,
+            durationMinutes: Number(c?.duration_minutes) || 0,
+          }));
+          const primaryPrice = Number(b.service_options?.price) || 0;
+          const primaryDuration = Number(b.service_options?.duration_minutes) || 0;
           return {
             id: b.id,
             date: dateStr,
@@ -659,7 +696,13 @@ function CalendarTab() {
             clientPhone: b.client_phone,
             serviceName: b.services?.name || "Servicio Eliminado",
             optionName: b.service_options?.name || "",
-            price: b.service_options?.price || 0,
+            price: primaryPrice,
+            comboServices,
+            totalPrice:
+              primaryPrice + comboServices.reduce((sum, c) => sum + c.price, 0),
+            totalDurationMinutes:
+              primaryDuration +
+              comboServices.reduce((sum, c) => sum + c.durationMinutes, 0),
             status: b.status,
             paymentMethod: "N/A",
             googleEventId: b.google_event_id,
@@ -893,8 +936,35 @@ function CalendarTab() {
                       </span>
                     </div>
                     <div className="text-xs text-brand-tertiary/80 space-y-0.5">
-                      <p><strong>Servicio:</strong> {b.serviceName || "Servicio"} ({b.optionName || "Opción"})</p>
+                      <p>
+                        <strong>Servicio:</strong> {b.serviceName || "Servicio"}
+                        {b.optionName ? ` (${b.optionName})` : ""}
+                        {b.comboServices?.length ? ` + ${b.comboServices.length} adicional${b.comboServices.length > 1 ? "es" : ""}` : ""}
+                      </p>
                     </div>
+
+                    {b.comboServices?.length > 0 && (
+                      <div className="bg-white/70 rounded-xl border border-brand-primary/20 p-2 space-y-1">
+                        <span className="text-[9px] font-bold uppercase tracking-widest text-brand-primary flex items-center gap-1">
+                          <Sparkles className="w-3 h-3" /> Servicios combinados
+                        </span>
+                        {b.comboServices.map((c: any, i: number) => (
+                          <div key={i} className="flex items-center justify-between gap-2 text-[11px]">
+                            <span className="text-brand-tertiary truncate">
+                              + {c.serviceName}
+                              {c.optionName ? <span className="text-brand-tertiary/50"> ({c.optionName})</span> : null}
+                            </span>
+                            <span className="font-bold text-brand-primary shrink-0">€{c.price}</span>
+                          </div>
+                        ))}
+                        <div className="flex items-center justify-between gap-2 pt-1 border-t border-brand-outline/15 text-[11px]">
+                          <span className="text-brand-tertiary/60 font-semibold uppercase tracking-wide">
+                            Total{typeof b.totalDurationMinutes === "number" && b.totalDurationMinutes > 0 ? ` · ⏱️ ${b.totalDurationMinutes} min` : ""}
+                          </span>
+                          <span className="font-bold text-brand-primary">€{Number(b.totalPrice ?? b.price).toFixed(2)}</span>
+                        </div>
+                      </div>
+                    )}
                     <div className="pt-2 border-t border-brand-outline/10 flex justify-end">
                       <button
                         onClick={() => handleDeleteBooking(b.id)}
@@ -933,8 +1003,30 @@ function CalendarTab() {
                       </a>
                     </div>
                     <p className="text-xs text-brand-tertiary/80">
-                      <strong>Servicio:</strong> {b.serviceName || "Servicio"} - {b.optionName || "Opción"} (€${b.price})
+                      <strong>Servicio:</strong> {b.serviceName || "Servicio"} - {b.optionName || "Opción"} (€{b.price})
                     </p>
+                    {b.comboServices?.length > 0 && (
+                      <div className="mt-1.5 bg-brand-secondary/60 rounded-xl border border-brand-primary/20 px-3 py-2 space-y-1">
+                        <span className="text-[9px] font-bold uppercase tracking-widest text-brand-primary flex items-center gap-1">
+                          <Sparkles className="w-3 h-3" /> Servicios combinados
+                        </span>
+                        {b.comboServices.map((c: any, i: number) => (
+                          <div key={i} className="flex items-center justify-between gap-2 text-[11px]">
+                            <span className="text-brand-tertiary truncate">
+                              + {c.serviceName}
+                              {c.optionName ? <span className="text-brand-tertiary/50"> ({c.optionName})</span> : null}
+                            </span>
+                            <span className="font-semibold text-brand-primary shrink-0">€{c.price}</span>
+                          </div>
+                        ))}
+                        <div className="flex items-center justify-between gap-2 pt-1 border-t border-brand-outline/20 text-[11px]">
+                          <span className="text-brand-tertiary/60 font-semibold uppercase tracking-wide">
+                            Total{typeof b.totalDurationMinutes === "number" && b.totalDurationMinutes > 0 ? ` · ⏱️ ${b.totalDurationMinutes} min` : ""}
+                          </span>
+                          <span className="font-bold text-brand-primary">€{Number(b.totalPrice ?? b.price).toFixed(2)}</span>
+                        </div>
+                      </div>
+                    )}
                   </div>
                   <div className="flex items-center justify-between sm:justify-end gap-4">
                     <div className="text-right">
@@ -1202,9 +1294,9 @@ function ServicesTab() {
         const oldIndex = items.findIndex((i) => i.id === active.id);
         const newIndex = items.findIndex((i) => i.id === over.id);
         const newArray = arrayMove(items, oldIndex, newIndex).map((s, idx) => ({ ...s, order: idx }));
-        Promise.all(newArray.map((s) => supabase.from("services").update({ order_index: s.order }).eq("id", s.id))).catch((err) =>
-          console.error("Error updating order", err)
-        );
+        Promise.all(newArray.map((s) => supabase.from("services").update({ order_index: s.order }).eq("id", s.id)))
+          .then(() => invalidatePublicCache(["services-catalog"]))
+          .catch((err) => console.error("Error updating order", err));
         return newArray;
       });
     }
@@ -1294,6 +1386,8 @@ function ServicesTab() {
       setIsAddModalOpen(false);
       resetServiceForm();
       loadServices();
+      // La vista pública debe reflejar el cambio de inmediato
+      invalidatePublicCache(["services-catalog"]);
     } catch (err) {
       console.error("Error saving service:", err);
       alert("Error al guardar el servicio");
@@ -1309,6 +1403,7 @@ function ServicesTab() {
       const { error } = await supabase.from("services").delete().eq("id", id);
       if (!error) {
         loadServices();
+        invalidatePublicCache(["services-catalog"]);
       } else {
         throw error;
       }
@@ -1547,7 +1642,7 @@ function SortableServiceItem({ service, onEdit, onDelete }: { service: Service; 
             {service.options?.map((opt) => (
               <div key={opt.id} className="bg-white px-3 py-1.5 rounded-lg border border-brand-outline/15 flex items-center justify-between gap-3 text-xs shadow-2xs flex-1 min-w-[130px]">
                 <span className="font-medium text-brand-tertiary">{opt.name}</span>
-                <span className="font-bold text-brand-primary text-sm">€${opt.price}</span>
+                <span className="font-bold text-brand-primary text-sm">€{opt.price}</span>
               </div>
             ))}
           </div>

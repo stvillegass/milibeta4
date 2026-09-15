@@ -65,6 +65,7 @@ CREATE TABLE public.bookings (
     status TEXT NOT NULL DEFAULT 'pending' CHECK (status IN ('pending', 'confirmed', 'cancelled', 'completed')),
     google_event_id TEXT, -- ID del evento de Google Calendar
     synced_to_calendar BOOLEAN DEFAULT FALSE,
+    combo_services JSONB DEFAULT '[]'::jsonb, -- Servicios combinados (Manicure + Pedicure + Cejas)
     created_at TIMESTAMPTZ DEFAULT NOW(),
     updated_at TIMESTAMPTZ DEFAULT NOW()
 );
