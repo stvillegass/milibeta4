@@ -1457,7 +1457,7 @@ function ServicesTab() {
                       </div>
                       <div className="grid grid-cols-2 gap-2">
                         <div>
-                          <label className="block text-[10px] font-bold uppercase text-brand-tertiary/50 mb-1">Precio ($)</label>
+                          <label className="block text-[10px] font-bold uppercase text-brand-tertiary/50 mb-1">Precio (€)</label>
                           <input type="text" inputMode="decimal" placeholder="Ej: 25" value={opt.price} onChange={(e) => handleOptionChange(idx, "price", e.target.value)} className="w-full bg-brand-secondary/30 p-2 rounded-lg border border-brand-outline/20 outline-none text-xs focus:border-brand-primary" />
                         </div>
                         <div>

@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { useRef, useState, useEffect } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { motion, AnimatePresence, useScroll, useTransform, useSpring } from "framer-motion";
@@ -25,6 +25,31 @@ export default function Navigation() {
   const router = useRouter();
   const { isAdmin } = useAuth();
   const isAdminRoute = pathname.startsWith("/admin");
+
+  // ── Datos reales de ubicación desde Supabase (no hardcode) ────────────
+  const [locationInfo, setLocationInfo] = useState({
+    studioName: "Milibeauty",
+    studioAddress: "",
+    mapsUrl: "",
+  });
+
+  useEffect(() => {
+    let cancelled = false;
+    fetch("/api/site-config", { cache: "no-store" })
+      .then((res) => res.json())
+      .then((data) => {
+        if (cancelled || !data) return;
+        setLocationInfo((prev) => ({
+          studioName: data.studioName || prev.studioName,
+          studioAddress: data.studioAddress || prev.studioAddress,
+          mapsUrl: data.mapsUrl || "",
+        }));
+      })
+      .catch(console.error);
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   // ── Acceso oculto al panel admin desde el logo ─────────────────
   // Timestamps de clics/taps consecutivos para detectar triple clic
@@ -131,9 +156,9 @@ export default function Navigation() {
       <LocationModal
         isOpen={isLocationOpen}
         onClose={() => setIsLocationOpen(false)}
-        studioName="Milibeauty"
-        studioAddress="Av. Principal Las Mercedes, Edificio Centro Empresarial, Piso 3, Local 302"
-        mapsUrl="https://www.google.com/maps/search/?api=1&query=Milibeauty+Studio"
+        studioName={locationInfo.studioName}
+        studioAddress={locationInfo.studioAddress}
+        mapsUrl={locationInfo.mapsUrl}
       />
 
       {/* ── MOBILE FLOATING LUXURY CAPSULE ── */}

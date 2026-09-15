@@ -15,7 +15,7 @@ export default function LocationModal({
   isOpen,
   onClose,
   studioName = "Milibeauty",
-  studioAddress = "Av. Principal Las Mercedes, Edificio Centro Empresarial, Piso 3, Local 302",
+  studioAddress = "",
   mapsUrl,
 }: LocationModalProps) {
   const [copied, setCopied] = useState(false);
@@ -23,9 +23,11 @@ export default function LocationModal({
 
   if (!isOpen) return null;
 
+  const mapsQuery = encodeURIComponent(`${studioName} ${studioAddress}`.trim());
   const defaultGoogleMaps =
-    mapsUrl ||
-    `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(studioName + " " + studioAddress)}`;
+    mapsUrl && !studioAddress
+      ? mapsUrl
+      : `https://www.google.com/maps/search/?api=1&query=${mapsQuery}`;
   const appleMapsUrl = `https://maps.apple.com/?q=${encodeURIComponent(studioName + " " + studioAddress)}`;
   const wazeUrl = `https://waze.com/ul?q=${encodeURIComponent(studioAddress || studioName)}&navigate=yes`;
 
