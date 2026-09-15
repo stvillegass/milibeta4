@@ -4,6 +4,7 @@ import { useState, useEffect } from "react";
 import { ArrowRight } from "lucide-react";
 import Link from "next/link";
 import Image from "next/image";
+import { supabase } from "@/lib/supabase";
 
 export default function HomePage() {
   // Sin imagen por defecto hardcodeada: la portada se obtiene de forma dinámica
@@ -58,6 +59,23 @@ export default function HomePage() {
       })
       .catch(console.error);
 
+    // Capa extra de seguridad: leer la portada directamente de Supabase, que es la
+    // fuente de verdad. Así la actualización del panel se refleja sí o sí, incluso
+    // si la ruta API tuviera caché o quedara un estado en memoria desactualizado.
+    (async () => {
+      const { data } = await supabase
+        .from("app_settings")
+        .select("value, updated_at")
+        .eq("key", "category_images")
+        .maybeSingle();
+      if (cancelled || !data?.value) return;
+      const val = data.value as { nails?: string; lashes?: string };
+      if (val.nails || val.lashes) {
+        setCategoryImages({ nails: val.nails || "", lashes: val.lashes || "" });
+        if (data.updated_at) setUpdatedAt(new Date(data.updated_at as string).getTime());
+      }
+    })().catch(console.error);
+
     fetch("/api/site-config", { cache: "no-store" })
       .then((res) => res.json())
       .then((data) => {
@@ -85,7 +103,7 @@ export default function HomePage() {
           className="block relative h-72 sm:h-80 lg:h-[420px] rounded-3xl overflow-hidden group transition-all duration-500 border border-brand-outline/20 hover:border-brand-primary/50 hover:shadow-2xl active:scale-[0.99]"
         >
           <div className="absolute inset-0 bg-gradient-to-t from-stone-950/90 via-stone-950/35 to-transparent z-10" />
-          {categoryImages ? (
+          {categoryImages?.nails ? (
             <Image
               key={cacheBust(categoryImages.nails)}
               src={cacheBust(categoryImages.nails)}
@@ -122,7 +140,7 @@ export default function HomePage() {
           className="block relative h-72 sm:h-80 lg:h-[420px] rounded-3xl overflow-hidden group transition-all duration-500 border border-brand-outline/20 hover:border-brand-primary/50 hover:shadow-2xl active:scale-[0.99]"
         >
           <div className="absolute inset-0 bg-gradient-to-t from-stone-950/90 via-stone-950/35 to-transparent z-10" />
-          {categoryImages ? (
+          {categoryImages?.lashes ? (
             <Image
               key={cacheBust(categoryImages.lashes)}
               src={cacheBust(categoryImages.lashes)}

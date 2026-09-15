@@ -1966,6 +1966,12 @@ function ClientInterfaceTab() {
   const [saveSuccess, setSaveSuccess] = useState(false);
   // Subida de portadas de especialidades desde el dispositivo
   const [categoryUploading, setCategoryUploading] = useState<"nails" | "lashes" | null>(null);
+  // Preview local del archivo recién seleccionado (solo visual, nunca se persiste).
+  // Esto evita que el base64 del FileReader se mezcle/sobreescriba la URL real.
+  const [coverPreview, setCoverPreview] = useState<{ nails: string; lashes: string }>({
+    nails: "",
+    lashes: "",
+  });
 
   useEffect(() => {
     const loadConfig = async () => {
@@ -2074,22 +2080,27 @@ function ClientInterfaceTab() {
 
   // Sube una portada de especialidad al Storage, muestra preview y actualiza categoryImages
   const handleCategoryImageChange = async (key: "nails" | "lashes", file: File) => {
+    // 1. Preview inmediata con el archivo local (base64) — solo para mostrar, no se guarda
     const reader = new FileReader();
-    reader.onload = () => setCategoryImages((prev) => ({ ...prev, [key]: String(reader.result) }));
+    reader.onload = () => setCoverPreview((prev) => ({ ...prev, [key]: String(reader.result) }));
     reader.readAsDataURL(file);
 
     setCategoryUploading(key);
     try {
       const url = await uploadImageToBucket(file, "covers");
       if (url) {
+        // 2. Solo la URL pública real entra a categoryImages (nunca el base64)
         setCategoryImages((prev) => ({ ...prev, [key]: url }));
+        setCoverPreview((prev) => ({ ...prev, [key]: url }));
         console.log(`✅ [Admin] Portada "${key}" actualizada:`, url);
       } else {
         alert("Error al subir la imagen de portada. Verifica que el bucket de Storage esté configurado.");
+        setCoverPreview((prev) => ({ ...prev, [key]: "" }));
       }
     } catch (err) {
       console.error("❌ [Admin] Error subiendo portada:", err);
       alert("Error al subir la imagen de portada.");
+      setCoverPreview((prev) => ({ ...prev, [key]: "" }));
     } finally {
       setCategoryUploading(null);
     }
@@ -2098,11 +2109,24 @@ function ClientInterfaceTab() {
   const handleSave = async () => {
     setIsSaving(true);
     try {
+      // Fuente de verdad: persistir portadas directo en Supabase para que la Home
+      // las lea de inmediato, sin depender de la caché ni del estado en memoria.
+      let coverDBSaved = true;
+      if (categoryImages?.nails || categoryImages?.lashes) {
+        const { error: coverErr } = await supabase
+          .from("app_settings")
+          .upsert({ key: "category_images", value: categoryImages }, { onConflict: "key" });
+        if (coverErr) {
+          console.error("[Admin] Error persistiendo category_images en Supabase:", coverErr);
+          coverDBSaved = false;
+        }
+      }
+
       const [resImg, resConfig] = await Promise.all([
         fetch("/api/categories/images", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(categoryImages) }),
         fetch("/api/site-config", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(siteConfig) }),
       ]);
-      if (resImg.ok && resConfig.ok) {
+      if (resImg.ok && resConfig.ok && coverDBSaved) {
         setSaveSuccess(true);
         setTimeout(() => setSaveSuccess(false), 3500);
       }
@@ -2333,7 +2357,7 @@ function ClientInterfaceTab() {
             <h5 className="font-serif italic font-medium text-base text-brand-tertiary">💅 Categoría Manicure</h5>
             <div className="relative h-40 rounded-xl overflow-hidden shadow-sm border border-brand-outline/10">
               <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/30 to-transparent z-10" />
-              <Image src={categoryImages.nails} alt="Preview Manicure" fill sizes="(max-width: 768px) 100vw, 50vw" quality={90} className="w-full h-full object-cover" />
+              <Image src={coverPreview.nails || categoryImages.nails} alt="Preview Manicure" fill sizes="(max-width: 768px) 100vw, 50vw" quality={90} className="w-full h-full object-cover" />
               <div className="absolute bottom-0 left-0 p-4 z-20 w-full">
                 <span className="text-brand-primary-light text-[10px] font-semibold uppercase tracking-widest block">{siteConfig.nailsTag || "Especialidad"}</span>
                 <h6 className="text-white text-xl font-serif italic font-medium">{siteConfig.nailsTitle || "Manicure"}</h6>
@@ -2362,7 +2386,7 @@ function ClientInterfaceTab() {
             <h5 className="font-serif italic font-medium text-base text-brand-tertiary">👁️ Categoría Cejas & Pestañas</h5>
             <div className="relative h-40 rounded-xl overflow-hidden shadow-sm border border-brand-outline/10">
               <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/30 to-transparent z-10" />
-              <Image src={categoryImages.lashes} alt="Preview Cejas y Pestañas" fill sizes="(max-width: 768px) 100vw, 50vw" quality={90} className="w-full h-full object-cover" />
+              <Image src={coverPreview.lashes || categoryImages.lashes} alt="Preview Cejas y Pestañas" fill sizes="(max-width: 768px) 100vw, 50vw" quality={90} className="w-full h-full object-cover" />
               <div className="absolute bottom-0 left-0 p-4 z-20 w-full">
                 <span className="text-brand-primary-light text-[10px] font-semibold uppercase tracking-widest block">{siteConfig.lashesTag || "Especialidad"}</span>
                 <h6 className="text-white text-xl font-serif italic font-medium">{siteConfig.lashesTitle || "Cejas y Pestañas"}</h6>
