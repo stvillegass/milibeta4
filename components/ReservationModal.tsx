@@ -588,7 +588,7 @@ export default function ReservationModal({
 
   return (
     <div className="fixed inset-0 z-50 bg-black/40 backdrop-blur-sm flex items-start sm:items-center justify-center overflow-y-auto p-2 sm:p-4 pt-4 sm:pt-4 pb-28 sm:pb-8 animate-in fade-in">
-      <div className="bg-brand-secondary/85 backdrop-blur-2xl text-brand-tertiary w-full max-w-md rounded-3xl overflow-hidden shadow-2xl border border-brand-outline/30 relative my-auto max-h-[92vh] flex flex-col">
+      <div className="bg-brand-secondary/85 backdrop-blur-2xl text-brand-tertiary w-full max-w-md rounded-3xl overflow-hidden shadow-2xl border border-brand-outline/30 relative max-h-[92vh] flex flex-col">
         <div className={`sticky top-0 z-30 flex items-center justify-between shrink-0 w-full pointer-events-none ${step === "select" ? "absolute right-0 top-0 p-4 bg-transparent" : "bg-white/90 backdrop-blur-md px-5 py-4 border-b border-brand-outline/10"}`}>
           <div className="flex items-center gap-2 pointer-events-auto">
             {step === "checkout" && (
@@ -619,16 +619,16 @@ export default function ReservationModal({
           </button>
         </div>
 
-        <div className={`overflow-y-auto flex-1 px-4 sm:px-6 pb-4 sm:pb-6 ${step === "select" ? "pt-2 space-y-3" : "pt-4 sm:pt-6 space-y-6"}`}>
+        <div className={`overflow-y-auto flex-1 px-4 sm:px-6 pb-4 sm:pb-6 ${step === "select" ? "pt-2 space-y-2.5" : "pt-4 sm:pt-6 space-y-6"}`}>
           {step === "select" && (
             <div className="space-y-3">
               {service && (
-                <div className="bg-white/60 backdrop-blur-md p-4 rounded-2xl shadow-xs border border-brand-outline/10 space-y-3">
-                  <div className="flex flex-col gap-2.5 items-center text-center pt-2">
+                <div className="bg-white/60 backdrop-blur-md p-3 sm:p-4 rounded-2xl shadow-xs border border-brand-outline/10 space-y-2.5">
+                  <div className="flex flex-col gap-2 items-center text-center">
                     <img
                       src={service.imageUrl || FALLBACK_SERVICE_IMAGE}
                       alt={service.name}
-                      className="w-16 h-16 rounded-2xl object-cover shadow-sm"
+                      className="w-14 h-14 sm:w-16 sm:h-16 rounded-2xl object-cover shadow-sm"
                       referrerPolicy="no-referrer"
                       onError={(e) => {
                         const img = e.currentTarget;
@@ -636,7 +636,7 @@ export default function ReservationModal({
                       }}
                     />
                     <div>
-                      <p className="font-serif italic font-medium text-2xl text-brand-tertiary leading-tight">{service.name}</p>
+                      <p className="font-serif italic font-medium text-xl sm:text-2xl text-brand-tertiary leading-tight">{service.name}</p>
                     </div>
                   </div>
 
@@ -652,7 +652,7 @@ export default function ReservationModal({
                     if (visibleOptions.length === 0) return null;
 
                     return (
-                      <div className="pt-2 border-t border-brand-outline/10">
+                      <div className="pt-1.5 sm:pt-2 border-t border-brand-outline/10">
                         {!isPremiumEnabled && service.options.some((o) => o.name.toLowerCase().includes("premium")) && (
                           <p className="text-[10px] text-brand-tertiary/50 italic mb-2 text-center">
                             Solo modalidad clásica disponible
@@ -663,7 +663,7 @@ export default function ReservationModal({
                             <button
                               key={opt.id}
                               onClick={() => setOption(opt)}
-                              className={`p-2.5 rounded-xl text-left border transition-all duration-200 flex justify-between items-center ${
+                              className={`p-2 sm:p-2.5 rounded-xl text-left border transition-all duration-200 flex justify-between items-center ${
                                 option?.id === opt.id
                                   ? "bg-brand-primary/5 border-brand-primary shadow-2xs ring-1 ring-brand-primary"
                                   : "bg-white border-brand-outline/10 text-brand-tertiary/70 hover:border-brand-primary/40"
@@ -683,7 +683,7 @@ export default function ReservationModal({
                 </div>
               )}
 
-              <section className="bg-white/60 backdrop-blur-md p-4 rounded-3xl border border-brand-outline/20 space-y-4">
+              <section className="bg-white/60 backdrop-blur-md p-3 sm:p-4 rounded-3xl border border-brand-outline/20 space-y-3">
                 <div className="flex items-center justify-between">
                   <h3 className="text-xs font-semibold uppercase tracking-[0.18em] text-brand-tertiary/70 flex items-center gap-2">
                     <CalendarIcon className="w-4 h-4 text-brand-primary stroke-[1.5]" /> Selección de Fecha
