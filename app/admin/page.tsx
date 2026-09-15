@@ -1973,7 +1973,7 @@ function ClientInterfaceTab() {
         console.log("🔄 [Admin] Cargando configuración desde Supabase & API...");
 
         // 1. Cargar imágenes de portada
-        fetch("/api/categories/images")
+        fetch("/api/categories/images", { cache: "no-store" })
           .then((res) => res.json())
           .then((data) => {
             if (data?.nails || data?.lashes) {

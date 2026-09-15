@@ -6,10 +6,13 @@ import Link from "next/link";
 import Image from "next/image";
 
 export default function HomePage() {
-  const [categoryImages, setCategoryImages] = useState({
-    nails: "https://images.unsplash.com/photo-1604654894610-df63bc536371?q=80&w=1000&auto=format&fit=crop",
-    lashes: "https://images.unsplash.com/photo-1522337360788-8b13dee7a37e?q=80&w=1000&auto=format&fit=crop",
-  });
+  // Sin imagen por defecto hardcodeada: la portada se obtiene de forma dinámica
+  // desde la API/Supabase para evitar el parpadeo ("flash") de una imagen estática.
+  const [categoryImages, setCategoryImages] = useState<{
+    nails: string;
+    lashes: string;
+  } | null>(null);
+  const [updatedAt, setUpdatedAt] = useState<number>(0);
   const [siteConfig, setSiteConfig] = useState({
     studioName: "Milibeauty",
     studioSubtitle:
@@ -28,28 +31,51 @@ export default function HomePage() {
     mapsUrl: "https://www.google.com/maps/search/?api=1&query=Milibeauty+Studio",
   });
 
+  // Añade una marca de actualización (cache-buster) a la URL de la imagen. Así el
+  // navegador y el optimizador de Next.js sirven siempre la última portada y la
+  // actualización del panel se refleja al instante, sin servir caché vieja.
+  const cacheBust = (url: string) => {
+    if (!url) return url;
+    const sep = url.includes("?") ? "&" : "?";
+    const v = updatedAt ? `updated=${updatedAt}` : `v=${Date.now()}`;
+    return `${url}${sep}${v}`;
+  };
+
   useEffect(() => {
-    fetch("/api/categories/images")
+    let cancelled = false;
+
+    // Sin caché: siempre traer la portada actual desde la API/Supabase
+    fetch("/api/categories/images", { cache: "no-store" })
       .then((res) => res.json())
       .then((data) => {
+        if (cancelled) return;
         if (data?.nails || data?.lashes) {
-          setCategoryImages((prev) => ({
-            nails: data.nails || prev.nails,
-            lashes: data.lashes || prev.lashes,
-          }));
+          setCategoryImages({ nails: data.nails, lashes: data.lashes });
+        }
+        if (typeof data?.updatedAt === "number" && data.updatedAt > 0) {
+          setUpdatedAt(data.updatedAt);
         }
       })
       .catch(console.error);
 
-    fetch("/api/site-config")
+    fetch("/api/site-config", { cache: "no-store" })
       .then((res) => res.json())
       .then((data) => {
-        if (data) {
+        if (!cancelled && data) {
           setSiteConfig((prev) => ({ ...prev, ...data }));
         }
       })
       .catch(console.error);
+
+    return () => {
+      cancelled = true;
+    };
   }, []);
+
+  // Placeholder neutro mientras llega la portada real (evita mostrar la imagen por defecto)
+  const coverPlaceholder = (
+    <div className="absolute inset-0 bg-gradient-to-br from-stone-700 via-stone-800 to-stone-900" />
+  );
 
   return (
     <div className="pt-20 sm:pt-28 min-h-screen px-4 sm:px-6 lg:px-8 max-w-6xl lg:max-w-7xl mx-auto space-y-8">
@@ -59,15 +85,20 @@ export default function HomePage() {
           className="block relative h-72 sm:h-80 lg:h-[420px] rounded-3xl overflow-hidden group transition-all duration-500 border border-brand-outline/20 hover:border-brand-primary/50 hover:shadow-2xl active:scale-[0.99]"
         >
           <div className="absolute inset-0 bg-gradient-to-t from-stone-950/90 via-stone-950/35 to-transparent z-10" />
-          <Image
-            src={categoryImages.nails}
-            alt="Manicura"
-            fill
-            sizes="(max-width: 768px) 100vw, 50vw"
-            quality={90}
-            priority
-            className="absolute inset-0 w-full h-full object-cover group-hover:scale-105 transition-transform duration-700 ease-out"
-          />
+          {categoryImages ? (
+            <Image
+              key={cacheBust(categoryImages.nails)}
+              src={cacheBust(categoryImages.nails)}
+              alt="Manicura"
+              fill
+              sizes="(max-width: 768px) 100vw, 50vw"
+              quality={90}
+              priority
+              className="absolute inset-0 w-full h-full object-cover group-hover:scale-105 transition-transform duration-700 ease-out"
+            />
+          ) : (
+            coverPlaceholder
+          )}
           <div className="absolute bottom-0 left-0 right-0 p-6 sm:p-8 lg:p-10 z-20 flex justify-between items-end">
             <div className="min-w-0 flex-1 mr-4">
               <span className="text-xs font-semibold text-brand-primary uppercase tracking-widest mb-1.5 block">
@@ -91,15 +122,20 @@ export default function HomePage() {
           className="block relative h-72 sm:h-80 lg:h-[420px] rounded-3xl overflow-hidden group transition-all duration-500 border border-brand-outline/20 hover:border-brand-primary/50 hover:shadow-2xl active:scale-[0.99]"
         >
           <div className="absolute inset-0 bg-gradient-to-t from-stone-950/90 via-stone-950/35 to-transparent z-10" />
-          <Image
-            src={categoryImages.lashes}
-            alt="Cejas y Pestañas"
-            fill
-            sizes="(max-width: 768px) 100vw, 50vw"
-            quality={90}
-            priority
-            className="absolute inset-0 w-full h-full object-cover group-hover:scale-105 transition-transform duration-700 ease-out"
-          />
+          {categoryImages ? (
+            <Image
+              key={cacheBust(categoryImages.lashes)}
+              src={cacheBust(categoryImages.lashes)}
+              alt="Cejas y Pestañas"
+              fill
+              sizes="(max-width: 768px) 100vw, 50vw"
+              quality={90}
+              priority
+              className="absolute inset-0 w-full h-full object-cover group-hover:scale-105 transition-transform duration-700 ease-out"
+            />
+          ) : (
+            coverPlaceholder
+          )}
           <div className="absolute bottom-0 left-0 right-0 p-6 sm:p-8 lg:p-10 z-20 flex justify-between items-end">
             <div className="min-w-0 flex-1 mr-4">
               <span className="text-xs font-semibold text-brand-primary uppercase tracking-widest mb-1.5 block">
