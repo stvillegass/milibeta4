@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
 import Image from "next/image";
 import { motion, AnimatePresence } from "framer-motion";
@@ -1113,6 +1113,20 @@ function ServicesTab() {
     loadServices();
   }, []);
 
+  const tabRef = useRef<HTMLDivElement>(null);
+
+  // ── Al abrir la vista de agregar/editar servicio, posicionarse al inicio ──
+  useEffect(() => {
+    if (isAddModalOpen) {
+      const el = tabRef.current;
+      if (el) {
+        el.scrollIntoView({ behavior: "smooth", block: "start" });
+      } else {
+        window.scrollTo({ top: 0, behavior: "smooth" });
+      }
+    }
+  }, [isAddModalOpen]);
+
   // ── Reset / apertura del formulario ────────────────────────────
   const resetServiceForm = () => {
     setEditingServiceId(null);
@@ -1304,42 +1318,49 @@ function ServicesTab() {
   };
 
   return (
-    <div className="pb-20">
-      <div className="flex justify-between items-center mb-8">
-        <div>
-          <h2 className="text-3xl font-serif italic mb-2">Gestor de Servicios</h2>
-          <p className="text-brand-tertiary/60">Agrega, edita y arrastra para reordenar tus servicios.</p>
-        </div>
-        <button
-          onClick={openCreateService}
-          className="bg-brand-primary text-white px-5 py-3 flex items-center gap-2 rounded-xl text-xs uppercase font-bold tracking-widest shadow-sm hover:opacity-95 transition-all active:scale-95"
-        >
-          <Plus className="w-4 h-4" /> Agregar Servicio
-        </button>
-      </div>
-
-      <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
-        <SortableContext items={services} strategy={verticalListSortingStrategy}>
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-            {services.map((service) => (
-              <SortableServiceItem key={service.id} service={service} onEdit={handleEditService} onDelete={handleDeleteService} />
-            ))}
+    <div className="pb-32" ref={tabRef}>
+      {isAddModalOpen ? (
+        <div className="w-full space-y-6 animate-fade-in">
+          {/* Barra superior: Volver / Cerrar */}
+          <div className="flex items-center justify-between">
+            <button
+              type="button"
+              onClick={() => setIsAddModalOpen(false)}
+              className="inline-flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-brand-tertiary/70 hover:text-brand-primary bg-white px-3.5 py-2 rounded-xl border border-brand-outline/15 shadow-sm transition-all hover:bg-brand-primary/5"
+            >
+              <ArrowLeft className="w-4 h-4" />
+              <span>Volver a la lista de servicios</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => setIsAddModalOpen(false)}
+              className="p-2 text-brand-tertiary/60 hover:text-brand-tertiary hover:bg-white rounded-xl transition-colors border border-transparent hover:border-brand-outline/15 shadow-sm"
+              title="Cerrar y volver"
+            >
+              <X className="w-5 h-5" />
+            </button>
           </div>
-        </SortableContext>
-      </DndContext>
 
-      {isAddModalOpen && (
-        <div className="fixed inset-0 z-50 overflow-y-auto bg-black/50 backdrop-blur-xs animate-fade-in">
-          <div className="flex min-h-full items-center justify-center p-4 sm:p-6">
-            <div className="bg-white rounded-2xl w-full max-w-xl md:max-w-2xl lg:max-w-3xl p-5 sm:p-7 shadow-xl border border-brand-outline/10 space-y-6 my-8">
-            <div className="flex items-center justify-between border-b border-brand-outline/10 pb-4">
-              <div>
-                <h3 className="text-xl font-serif italic">{editingServiceId ? "Editar Servicio" : "Agregar Nuevo Servicio"}</h3>
-                <p className="text-xs text-brand-tertiary/60">Ingresa los datos del nuevo servicio para tu catálogo.</p>
+          {/* Contenedor principal blanco con diseño fluido */}
+          <div className="bg-white rounded-3xl shadow-sm border border-brand-outline/15 p-5 sm:p-7 lg:p-8 space-y-6">
+            <div className="border-b border-brand-outline/10 pb-5">
+              <div className="flex items-center gap-2 mb-1.5 flex-wrap">
+                <span className="text-[11px] uppercase font-bold tracking-widest text-brand-primary bg-brand-primary/10 px-2.5 py-0.5 rounded-full border border-brand-primary/20">
+                  Gestor de Servicios
+                </span>
+                <span className="text-xs text-brand-tertiary/30">•</span>
+                <span className="text-xs font-semibold text-brand-tertiary/60">
+                  {editingServiceId ? "Modo Edición" : "Nuevo Servicio"}
+                </span>
               </div>
-              <button type="button" onClick={() => setIsAddModalOpen(false)} className="p-1.5 text-brand-tertiary/60 hover:text-brand-tertiary hover:bg-gray-100 rounded-lg transition-colors">
-                <X className="w-5 h-5" />
-              </button>
+              <h3 className="text-2xl md:text-3xl font-serif italic text-brand-tertiary">
+                {editingServiceId ? "Editar Servicio" : "Agregar Nuevo Servicio"}
+              </h3>
+              <p className="text-xs sm:text-sm text-brand-tertiary/60 mt-1">
+                {editingServiceId
+                  ? "Modifica el nombre, portada, detalles y precios de las modalidades de este servicio."
+                  : "Ingresa los datos del nuevo servicio para incorporarlo a tu catálogo de clientes."}
+              </p>
             </div>
 
             {!selectedCategory ? (
@@ -1463,9 +1484,33 @@ function ServicesTab() {
                 </div>
               </form>
             )}
-            </div>
           </div>
         </div>
+      ) : (
+        <>
+        <div className="flex justify-between items-center mb-8">
+          <div>
+            <h2 className="text-3xl font-serif italic mb-2">Gestor de Servicios</h2>
+            <p className="text-brand-tertiary/60">Agrega, edita y arrastra para reordenar tus servicios.</p>
+          </div>
+          <button
+            onClick={openCreateService}
+            className="bg-brand-primary text-white px-5 py-3 flex items-center gap-2 rounded-xl text-xs uppercase font-bold tracking-widest shadow-sm hover:opacity-95 transition-all active:scale-95"
+          >
+            <Plus className="w-4 h-4" /> Agregar Servicio
+          </button>
+        </div>
+
+        <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
+          <SortableContext items={services} strategy={verticalListSortingStrategy}>
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+              {services.map((service) => (
+                <SortableServiceItem key={service.id} service={service} onEdit={handleEditService} onDelete={handleDeleteService} />
+              ))}
+            </div>
+          </SortableContext>
+          </DndContext>
+        </>
       )}
     </div>
   );
