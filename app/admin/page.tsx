@@ -1329,8 +1329,9 @@ function ServicesTab() {
       </DndContext>
 
       {isAddModalOpen && (
-        <div className="fixed inset-0 bg-black/50 backdrop-blur-xs flex items-center justify-center p-4 z-50 animate-fade-in">
-          <div className="bg-white rounded-2xl max-w-lg w-full p-6 shadow-xl border border-brand-outline/10 max-h-[90vh] overflow-y-auto space-y-6">
+        <div className="fixed inset-0 z-50 overflow-y-auto bg-black/50 backdrop-blur-xs animate-fade-in">
+          <div className="flex min-h-full items-center justify-center p-4 sm:p-6">
+            <div className="bg-white rounded-2xl w-full max-w-xl md:max-w-2xl lg:max-w-3xl p-5 sm:p-7 shadow-xl border border-brand-outline/10 space-y-6 my-8">
             <div className="flex items-center justify-between border-b border-brand-outline/10 pb-4">
               <div>
                 <h3 className="text-xl font-serif italic">{editingServiceId ? "Editar Servicio" : "Agregar Nuevo Servicio"}</h3>
@@ -1462,6 +1463,7 @@ function ServicesTab() {
                 </div>
               </form>
             )}
+            </div>
           </div>
         </div>
       )}
