@@ -30,7 +30,7 @@ export async function GET() {
   try {
     const { data, error } = await supabase
       .from("app_settings")
-      .select("value, updated_at")
+      .select("value")
       .eq("key", "category_images")
       .maybeSingle();
 
@@ -39,7 +39,8 @@ export async function GET() {
       memory = {
         nails: typeof val.nails === "string" && val.nails ? val.nails : DEFAULT_IMAGES.nails,
         lashes: typeof val.lashes === "string" && val.lashes ? val.lashes : DEFAULT_IMAGES.lashes,
-        updatedAt: data.updated_at ? new Date(data.updated_at as string).getTime() : Date.now(),
+        // app_settings no tiene updated_at: usamos una marca local como cache-buster
+        updatedAt: Date.now(),
       };
     } else {
       // No hay registro todavía: devolver los valores por defecto configurados

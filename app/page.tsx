@@ -65,14 +65,15 @@ export default function HomePage() {
     (async () => {
       const { data } = await supabase
         .from("app_settings")
-        .select("value, updated_at")
+        .select("value")
         .eq("key", "category_images")
         .maybeSingle();
       if (cancelled || !data?.value) return;
       const val = data.value as { nails?: string; lashes?: string };
       if (val.nails || val.lashes) {
         setCategoryImages({ nails: val.nails || "", lashes: val.lashes || "" });
-        if (data.updated_at) setUpdatedAt(new Date(data.updated_at as string).getTime());
+        // app_settings no tiene updated_at: marca local como cache-buster de la URL
+        setUpdatedAt(Date.now());
       }
     })().catch(console.error);
 
