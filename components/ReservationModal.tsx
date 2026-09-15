@@ -587,7 +587,7 @@ export default function ReservationModal({
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 z-50 bg-black/40 backdrop-blur-sm flex items-center justify-center p-2 sm:p-4 overflow-y-auto animate-in fade-in">
+    <div className="fixed inset-0 z-50 bg-black/40 backdrop-blur-sm flex items-start sm:items-center justify-center overflow-y-auto p-2 sm:p-4 pt-4 sm:pt-4 pb-28 sm:pb-8 animate-in fade-in">
       <div className="bg-brand-secondary/85 backdrop-blur-2xl text-brand-tertiary w-full max-w-md rounded-3xl overflow-hidden shadow-2xl border border-brand-outline/30 relative my-auto max-h-[92vh] flex flex-col">
         <div className={`sticky top-0 z-30 flex items-center justify-between shrink-0 w-full pointer-events-none ${step === "select" ? "absolute right-0 top-0 p-4 bg-transparent" : "bg-white/90 backdrop-blur-md px-5 py-4 border-b border-brand-outline/10"}`}>
           <div className="flex items-center gap-2 pointer-events-auto">
