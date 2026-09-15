@@ -1456,6 +1456,7 @@ function ServicesTab() {
       }
     ]);
     setIsAddModalOpen(true);
+    window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
   const openEditModal = (service: Service) => {
@@ -1476,6 +1477,7 @@ function ServicesTab() {
         : [{ id: 'o1', name: 'General', price: '25', description: '', duration: '60 min', includes: '' }]
     );
     setIsAddModalOpen(true);
+    window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
   const handleAddOption = () => {
@@ -1583,194 +1585,161 @@ function ServicesTab() {
     }
   };
 
-  return (
-    <div className="pb-20">
-      <div className="flex justify-between items-center mb-8">
-        <div>
-          <h2 className="text-3xl font-serif italic mb-2">Gestor de Servicios</h2>
-          <p className="text-brand-tertiary/60">Agrega, edita y arrastra para reordenar tus servicios.</p>
+  // VISTA 1: Formulario de Creación / Edición (Estructura fluida en el flujo de la página)
+  if (isAddModalOpen) {
+    return (
+      <div className="w-full max-w-4xl mx-auto p-4 md:p-8 space-y-6 pb-28 animate-fade-in">
+        {/* Barra superior de navegación / Volver */}
+        <div className="flex items-center justify-between">
+          <button
+            type="button"
+            onClick={() => setIsAddModalOpen(false)}
+            className="inline-flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-brand-tertiary/70 hover:text-brand-primary bg-white px-3.5 py-2 rounded-xl border border-brand-outline/15 shadow-2xs transition-all hover:bg-brand-primary/5 cursor-pointer"
+          >
+            <ArrowLeft className="w-4 h-4" />
+            <span>Volver a la lista de servicios</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setIsAddModalOpen(false)}
+            className="p-2 text-brand-tertiary/60 hover:text-brand-tertiary hover:bg-white rounded-xl transition-colors border border-transparent hover:border-brand-outline/15 shadow-2xs"
+            title="Cerrar y volver"
+          >
+            <X className="w-5 h-5" />
+          </button>
         </div>
-        <button
-          onClick={openAddModal}
-          className="bg-brand-primary text-white px-5 py-3 flex items-center gap-2 rounded-xl text-xs uppercase font-bold tracking-widest shadow-sm hover:opacity-95 transition-all active:scale-95"
-        >
-          <Plus className="w-4 h-4" /> Agregar Servicio
-        </button>
-      </div>
 
-      <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
-        <SortableContext items={services} strategy={verticalListSortingStrategy}>
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-            {services.map(service => (
-              <SortableServiceItem
-                key={service.id}
-                service={service}
-                onEdit={openEditModal}
-                onDelete={handleDeleteService}
-              />
-            ))}
-          </div>
-        </SortableContext>
-      </DndContext>
-
-      {/* MODAL: Agregar / Editar Servicio */}
-      {isAddModalOpen && (
-        <div className="fixed inset-0 bg-black/50 backdrop-blur-xs flex items-center justify-center p-4 z-50 animate-fade-in">
-          <div className="bg-white rounded-2xl max-w-lg w-full p-6 shadow-xl border border-brand-outline/10 max-h-[90vh] overflow-y-auto space-y-6">
-            <div className="flex items-center justify-between border-b border-brand-outline/10 pb-4">
-              <div>
-                <h3 className="text-xl font-serif italic">
-                  {editingServiceId ? 'Editar Servicio' : 'Agregar Nuevo Servicio'}
-                </h3>
-                <p className="text-xs text-brand-tertiary/60">
-                  {editingServiceId ? 'Modifica el nombre, detalles y precios de las opciones.' : 'Ingresa los datos del nuevo servicio para tu catálogo.'}
-                </p>
-              </div>
-              <button
-                type="button"
-                onClick={() => setIsAddModalOpen(false)}
-                className="p-1.5 text-brand-tertiary/60 hover:text-brand-tertiary hover:bg-gray-100 rounded-lg transition-colors"
-              >
-                <X className="w-5 h-5" />
-              </button>
+        {/* Contenedor principal blanco con scroll natural y fluid layout */}
+        <div className="bg-white rounded-3xl shadow-sm border border-brand-outline/15 p-5 md:p-8 overflow-y-auto space-y-6">
+          {/* Header del formulario */}
+          <div className="border-b border-brand-outline/10 pb-5">
+            <div className="flex items-center gap-2 mb-1.5">
+              <span className="text-[11px] uppercase font-bold tracking-widest text-brand-primary bg-brand-primary/10 px-2.5 py-0.5 rounded-full border border-brand-primary/20">
+                Gestor de Servicios
+              </span>
+              <span className="text-xs text-brand-tertiary/30">•</span>
+              <span className="text-xs font-semibold text-brand-tertiary/60">
+                {editingServiceId ? 'Modo Edición' : 'Nuevo Servicio'}
+              </span>
             </div>
+            <h3 className="text-2xl md:text-3xl font-serif italic text-brand-tertiary">
+              {editingServiceId ? 'Editar Servicio' : 'Agregar Nuevo Servicio'}
+            </h3>
+            <p className="text-xs sm:text-sm text-brand-tertiary/60 mt-1">
+              {editingServiceId
+                ? 'Modifica el nombre, portada, detalles y precios de las modalidades de este servicio.'
+                : 'Ingresa los datos del nuevo servicio para incorporarlo a tu catálogo de clientes.'}
+            </p>
+          </div>
 
-            {/* Step 1: Categoría selector (if not selected) */}
-            {!selectedCategory ? (
-              <div className="space-y-4">
-                <p className="text-sm font-bold text-center text-brand-tertiary">
+          {/* Paso 1: Selector de Categoría (si no se ha definido) */}
+          {!selectedCategory ? (
+            <div className="space-y-6 py-4">
+              <div className="text-center space-y-1">
+                <h4 className="text-base font-bold text-brand-tertiary">
                   ¿Qué tipo de servicio vas a agregar?
+                </h4>
+                <p className="text-xs text-brand-tertiary/60">
+                  Selecciona la categoría principal para organizar tu catálogo.
                 </p>
-
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-2">
-                  <button
-                    type="button"
-                    onClick={() => setSelectedCategory('nails')}
-                    className="p-6 rounded-2xl border-2 border-brand-outline/15 hover:border-brand-primary bg-brand-secondary/30 hover:bg-brand-primary/5 flex flex-col items-center text-center gap-3 transition-all group"
-                  >
-                    <span className="text-4xl group-hover:scale-110 transition-transform">💅</span>
-                    <div>
-                      <h4 className="font-bold text-base text-brand-tertiary group-hover:text-brand-primary">Uñas</h4>
-                      <p className="text-xs text-brand-tertiary/60 mt-1">Manicura, pedicura, acrílicas, gel, kapping.</p>
-                    </div>
-                  </button>
-
-                  <button
-                    type="button"
-                    onClick={() => setSelectedCategory('lashes')}
-                    className="p-6 rounded-2xl border-2 border-brand-outline/15 hover:border-brand-primary bg-brand-secondary/30 hover:bg-brand-primary/5 flex flex-col items-center text-center gap-3 transition-all group"
-                  >
-                    <span className="text-4xl group-hover:scale-110 transition-transform">👁️</span>
-                    <div>
-                      <h4 className="font-bold text-base text-brand-tertiary group-hover:text-brand-primary">Cejas y Pestañas</h4>
-                      <p className="text-xs text-brand-tertiary/60 mt-1">Lifting, extensiones, perfilado, laminado.</p>
-                    </div>
-                  </button>
-                </div>
               </div>
-            ) : (
-              /* Step 2: Form */
-              <form onSubmit={handleSaveService} className="space-y-4">
-                <div className="flex items-center justify-between p-3 bg-brand-primary/10 rounded-xl border border-brand-primary/20">
-                  <span className="text-xs font-bold text-brand-primary flex items-center gap-2">
-                    Categoría: {selectedCategory === 'nails' ? '💅 Uñas' : '👁️ Cejas y Pestañas'}
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 max-w-xl mx-auto pt-2">
+                <button
+                  type="button"
+                  onClick={() => setSelectedCategory('nails')}
+                  className="p-6 rounded-2xl border-2 border-brand-outline/15 hover:border-brand-primary bg-brand-secondary/30 hover:bg-brand-primary/5 flex flex-col items-center text-center gap-3 transition-all group shadow-2xs hover:shadow-sm cursor-pointer"
+                >
+                  <span className="text-5xl group-hover:scale-110 transition-transform">💅</span>
+                  <div>
+                    <h4 className="font-bold text-base text-brand-tertiary group-hover:text-brand-primary">Uñas</h4>
+                    <p className="text-xs text-brand-tertiary/60 mt-1">Manicura, pedicura, acrílicas, gel, kapping.</p>
+                  </div>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => setSelectedCategory('lashes')}
+                  className="p-6 rounded-2xl border-2 border-brand-outline/15 hover:border-brand-primary bg-brand-secondary/30 hover:bg-brand-primary/5 flex flex-col items-center text-center gap-3 transition-all group shadow-2xs hover:shadow-sm cursor-pointer"
+                >
+                  <span className="text-5xl group-hover:scale-110 transition-transform">👁️</span>
+                  <div>
+                    <h4 className="font-bold text-base text-brand-tertiary group-hover:text-brand-primary">Cejas y Pestañas</h4>
+                    <p className="text-xs text-brand-tertiary/60 mt-1">Lifting, extensiones, perfilado, laminado.</p>
+                  </div>
+                </button>
+              </div>
+            </div>
+          ) : (
+            /* Paso 2: Formulario de Detalle */
+            <form onSubmit={handleSaveService} className="space-y-6">
+              {/* Etiqueta de Categoría activa con opción de cambiar */}
+              <div className="flex items-center justify-between p-3.5 bg-brand-primary/10 rounded-2xl border border-brand-primary/20">
+                <span className="text-xs font-bold text-brand-primary flex items-center gap-2">
+                  <span>Categoría activa:</span>
+                  <span className="px-2.5 py-0.5 bg-white text-brand-tertiary rounded-lg shadow-2xs font-bold">
+                    {selectedCategory === 'nails' ? '💅 Uñas' : '👁️ Cejas y Pestañas'}
                   </span>
-                  <button
-                    type="button"
-                    onClick={() => setSelectedCategory(null)}
-                    className="text-[11px] font-semibold text-brand-primary underline hover:opacity-80"
-                  >
-                    Cambiar
-                  </button>
-                </div>
+                </span>
+                <button
+                  type="button"
+                  onClick={() => setSelectedCategory(null)}
+                  className="text-xs font-bold text-brand-primary underline hover:opacity-80 transition-opacity cursor-pointer"
+                >
+                  Cambiar categoría
+                </button>
+              </div>
 
-                <div>
-                  <label className="block text-xs font-bold uppercase tracking-wider mb-1 text-brand-tertiary/70">
-                    Nombre del Servicio *
-                  </label>
-                  <input
-                    type="text"
-                    required
-                    placeholder={selectedCategory === 'nails' ? 'Ej: Kapping Gel con Esmaltado' : 'Ej: Laminado de Cejas'}
-                    value={newServiceName}
-                    onChange={e => setNewServiceName(e.target.value)}
-                    className="w-full bg-brand-secondary/30 p-2.5 rounded-xl border border-brand-outline/20 outline-none text-xs focus:border-brand-primary"
-                  />
-                </div>
+              {/* NOMBRE DEL SERVICIO: Siempre visible al principio del formulario */}
+              <div className="space-y-1.5 bg-brand-secondary/25 p-4 rounded-2xl border border-brand-outline/15">
+                <label className="block text-xs font-bold uppercase tracking-wider text-brand-tertiary">
+                  Nombre del Servicio <span className="text-red-500">*</span>
+                </label>
+                <input
+                  type="text"
+                  required
+                  placeholder={selectedCategory === 'nails' ? 'Ej: Kapping Gel con Esmaltado Semipermanente' : 'Ej: Laminado y Perfilado de Cejas'}
+                  value={newServiceName}
+                  onChange={e => setNewServiceName(e.target.value)}
+                  className="w-full bg-white p-3 rounded-xl border border-brand-outline/25 outline-none text-sm font-semibold text-brand-tertiary focus:border-brand-primary focus:ring-2 focus:ring-brand-primary/20 transition-all shadow-2xs"
+                />
+                <p className="text-[11px] text-brand-tertiary/50">
+                  Este es el título principal que verán tus clientes al navegar por los servicios.
+                </p>
+              </div>
 
-                <div>
-                  <label className="block text-xs font-bold uppercase tracking-wider mb-1 text-brand-tertiary/70">
-                    Descripción del Servicio
-                  </label>
-                  <textarea
-                    rows={2}
-                    placeholder="Describe los beneficios o detalles técnica..."
-                    value={newServiceDesc}
-                    onChange={e => setNewServiceDesc(e.target.value)}
-                    className="w-full bg-brand-secondary/30 p-2.5 rounded-xl border border-brand-outline/20 outline-none text-xs focus:border-brand-primary resize-none"
-                  />
-                </div>
+              {/* DESCRIPCIÓN GENERAL DEL SERVICIO */}
+              <div className="space-y-1.5">
+                <label className="block text-xs font-bold uppercase tracking-wider text-brand-tertiary/70">
+                  Descripción General del Servicio
+                </label>
+                <textarea
+                  rows={3}
+                  placeholder="Describe las características generales, beneficios o técnicas de este servicio..."
+                  value={newServiceDesc}
+                  onChange={e => setNewServiceDesc(e.target.value)}
+                  className="w-full bg-brand-secondary/30 p-3 rounded-xl border border-brand-outline/20 outline-none text-xs text-brand-tertiary focus:border-brand-primary focus:bg-white transition-all resize-none"
+                />
+              </div>
 
-                <div>
-                  <label className="block text-xs font-bold uppercase tracking-wider mb-1.5 text-brand-tertiary/70">
-                    Imagen de Portada del Servicio
-                  </label>
+              {/* IMAGEN DE PORTADA */}
+              <div className="space-y-2 pt-2 border-t border-brand-outline/10">
+                <label className="block text-xs font-bold uppercase tracking-wider text-brand-tertiary/80">
+                  IMAGEN DE PORTADA
+                </label>
 
-                  {newServiceImageUrl ? (
-                    <div className="relative rounded-xl overflow-hidden border border-brand-outline/20 group bg-gray-50 flex items-center justify-center">
-                      <img
-                        src={newServiceImageUrl}
-                        alt="Portada del servicio"
-                        className="w-full h-36 object-cover"
-                      />
-                      <div className="absolute inset-0 bg-black/50 opacity-90 sm:opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-2 p-2">
-                        <label className="bg-white text-brand-tertiary hover:text-brand-primary text-xs px-3 py-1.5 rounded-lg font-bold cursor-pointer flex items-center gap-1.5 shadow-sm transition-colors">
-                          <Upload className="w-3.5 h-3.5" />
-                          <span>Cambiar Foto</span>
-                          <input
-                            type="file"
-                            accept="image/*"
-                            className="hidden"
-                            onChange={e => {
-                              const file = e.target.files?.[0];
-                              if (file) {
-                                if (file.size > 8 * 1024 * 1024) {
-                                  alert('La imagen no debe superar los 8MB.');
-                                  return;
-                                }
-                                const reader = new FileReader();
-                                reader.onloadend = () => {
-                                  if (typeof reader.result === 'string') {
-                                    setNewServiceImageUrl(reader.result);
-                                  }
-                                };
-                                reader.readAsDataURL(file);
-                              }
-                            }}
-                          />
-                        </label>
-                        <button
-                          type="button"
-                          onClick={() => setNewServiceImageUrl('')}
-                          className="bg-red-500 hover:bg-red-600 text-white text-xs px-3 py-1.5 rounded-lg font-bold flex items-center gap-1.5 shadow-sm transition-colors"
-                        >
-                          <X className="w-3.5 h-3.5" />
-                          <span>Quitar</span>
-                        </button>
-                      </div>
-                    </div>
-                  ) : (
-                    <div className="space-y-2">
-                      <label className="border-2 border-dashed border-brand-outline/30 hover:border-brand-primary/60 bg-brand-secondary/20 hover:bg-brand-primary/5 rounded-xl p-4 flex flex-col items-center justify-center cursor-pointer transition-all group text-center">
-                        <div className="w-10 h-10 rounded-full bg-brand-primary/10 text-brand-primary flex items-center justify-center mb-1.5 group-hover:scale-110 transition-transform">
-                          <Upload className="w-5 h-5" />
-                        </div>
-                        <p className="text-xs font-bold text-brand-tertiary group-hover:text-brand-primary">
-                          Cargar foto desde tu dispositivo / ordenador
-                        </p>
-                        <p className="text-[10px] text-brand-tertiary/50 mt-0.5">
-                          Haz clic para buscar en tus archivos (JPG, PNG, WEBP)
-                        </p>
+                {newServiceImageUrl ? (
+                  <div className="relative rounded-2xl overflow-hidden border border-brand-outline/20 group bg-gray-50 flex items-center justify-center max-w-md shadow-2xs">
+                    <img
+                      src={newServiceImageUrl}
+                      alt="Portada del servicio"
+                      className="w-full h-48 object-cover"
+                    />
+                    <div className="absolute inset-0 bg-black/50 opacity-90 sm:opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-2 p-2">
+                      <label className="bg-white text-brand-tertiary hover:text-brand-primary text-xs px-3.5 py-2 rounded-xl font-bold cursor-pointer flex items-center gap-1.5 shadow-sm transition-colors">
+                        <Upload className="w-4 h-4" />
+                        <span>Cambiar Foto</span>
                         <input
                           type="file"
                           accept="image/*"
@@ -1793,173 +1762,252 @@ function ServicesTab() {
                           }}
                         />
                       </label>
-
-                      <div className="flex items-center gap-2 pt-1">
-                        <span className="text-[10px] text-brand-tertiary/50 uppercase font-bold shrink-0">O por URL:</span>
-                        <input
-                          type="url"
-                          placeholder="https://ejemplo.com/imagen.jpg"
-                          value={newServiceImageUrl}
-                          onChange={e => setNewServiceImageUrl(e.target.value)}
-                          className="flex-1 bg-brand-secondary/30 px-3 py-1.5 rounded-lg border border-brand-outline/20 outline-none text-xs focus:border-brand-primary"
-                        />
-                      </div>
+                      <button
+                        type="button"
+                        onClick={() => setNewServiceImageUrl('')}
+                        className="bg-red-500 hover:bg-red-600 text-white text-xs px-3.5 py-2 rounded-xl font-bold flex items-center gap-1.5 shadow-sm transition-colors cursor-pointer"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                        <span>Quitar</span>
+                      </button>
                     </div>
-                  )}
-                  <p className="text-[10px] text-brand-tertiary/50 mt-1">
-                    Esta imagen servirá como la portada principal de este servicio.
-                  </p>
-                </div>
-
-                {/* Options and prices with detailed modality descriptions */}
-                <div className="space-y-3 pt-2 border-t border-brand-outline/10">
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <label className="text-xs font-bold uppercase tracking-wider text-brand-tertiary/70 block">
-                        Modalidades, Precios y Detalles Específicos
-                      </label>
-                      <p className="text-[11px] text-brand-tertiary/50">Personaliza la descripción, duración e inclusiones de cada modalidad (Ej: Clásico vs Premium).</p>
-                    </div>
-                    <button
-                      type="button"
-                      onClick={handleAddOption}
-                      className="text-xs font-bold text-brand-primary flex items-center gap-1 hover:underline"
-                    >
-                      <Plus className="w-3.5 h-3.5" /> Agregar Modalidad
-                    </button>
                   </div>
-
+                ) : (
                   <div className="space-y-3">
-                    {newServiceOptions.map((opt, idx) => (
-                      <div key={opt.id || idx} className="p-3.5 bg-brand-secondary/30 rounded-2xl border border-brand-outline/15 space-y-3">
-                        {/* Row 1: Name, Price, Duration, Delete */}
-                        <div className="flex flex-wrap sm:flex-nowrap items-center gap-2">
-                          <div className="flex-1 min-w-[130px]">
-                            <span className="text-[10px] font-bold text-brand-tertiary/60 uppercase block mb-1">
-                              Modalidad / Variante *
-                            </span>
-                            <input
-                              type="text"
-                              required
-                              placeholder="Ej: Clásico, Premium, VIP..."
-                              value={opt.name}
-                              onChange={e => handleUpdateOption(idx, 'name', e.target.value)}
-                              className="w-full bg-white p-2 rounded-xl border border-brand-outline/20 text-xs font-bold outline-none focus:border-brand-primary"
-                            />
-                          </div>
-
-                          <div className="w-28">
-                            <span className="text-[10px] font-bold text-brand-tertiary/60 uppercase block mb-1">
-                              Precio ($) *
-                            </span>
-                            <div className="flex items-center gap-1 bg-white px-2.5 py-1.5 rounded-xl border border-brand-outline/20 focus-within:border-brand-primary">
-                              <span className="text-xs font-bold text-brand-primary">$</span>
-                              <input
-                                type="text"
-                                inputMode="decimal"
-                                required
-                                placeholder="25"
-                                value={opt.price}
-                                onChange={e => handleUpdateOption(idx, 'price', e.target.value)}
-                                className="w-full bg-transparent text-xs font-bold outline-none text-brand-tertiary"
-                              />
-                            </div>
-                          </div>
-
-                          <div className="w-28">
-                            <span className="text-[10px] font-bold text-brand-tertiary/60 uppercase block mb-1">
-                              Duración
-                            </span>
-                            <input
-                              type="text"
-                              placeholder="45 min"
-                              value={opt.duration || ''}
-                              onChange={e => handleUpdateOption(idx, 'duration', e.target.value)}
-                              className="w-full bg-white p-2 rounded-xl border border-brand-outline/20 text-xs font-medium outline-none focus:border-brand-primary"
-                            />
-                          </div>
-
-                          {newServiceOptions.length > 1 && (
-                            <button
-                              type="button"
-                              onClick={() => handleRemoveOption(idx)}
-                              className="p-2 mt-4 text-red-400 hover:text-red-600 rounded-xl hover:bg-red-50 transition-colors"
-                              title="Eliminar modalidad"
-                            >
-                              <Trash2 className="w-4 h-4" />
-                            </button>
-                          )}
-                        </div>
-
-                        {/* Row 2: Descripción específica de esta modalidad */}
-                        <div>
-                          <label className="text-[10px] font-bold text-brand-tertiary/60 uppercase block mb-1">
-                            Descripción propia de la modalidad: {opt.name || 'Opción'}
-                          </label>
-                          <textarea
-                            rows={2}
-                            placeholder={`Describe los detalles específicos para la opción ${opt.name || ''}...`}
-                            value={opt.description || ''}
-                            onChange={e => handleUpdateOption(idx, 'description', e.target.value)}
-                            className="w-full bg-white p-2.5 rounded-xl border border-brand-outline/20 text-xs outline-none focus:border-brand-primary resize-none"
-                          />
-                        </div>
-
-                        {/* Row 3: Lo que incluye (Lista separada por comas) */}
-                        <div>
-                          <label className="text-[10px] font-bold text-brand-tertiary/60 uppercase block mb-1">
-                            ¿Qué incluye {opt.name || 'esta modalidad'}? (Separados por coma)
-                          </label>
-                          <input
-                            type="text"
-                            placeholder="Ej: Limpieza profunda, Nivelación Rubber, Esmaltado monocolor, Masaje"
-                            value={opt.includes || ''}
-                            onChange={e => handleUpdateOption(idx, 'includes', e.target.value)}
-                            className="w-full bg-white p-2 rounded-xl border border-brand-outline/20 text-xs outline-none focus:border-brand-primary"
-                          />
-                        </div>
-
-                        {/* Quick preset price helpers */}
-                        <div className="flex items-center gap-1.5 pt-1 border-t border-brand-outline/10">
-                          <span className="text-[10px] text-brand-tertiary/50 font-medium">Precios rápidos:</span>
-                          {['15', '25', '35', '50', '75', '100'].map(preset => (
-                            <button
-                              key={preset}
-                              type="button"
-                              onClick={() => handleUpdateOption(idx, 'price', preset)}
-                              className="text-[10px] px-2 py-0.5 rounded bg-white hover:bg-brand-primary/10 border border-brand-outline/10 text-brand-tertiary/70 hover:text-brand-primary font-bold transition-colors"
-                            >
-                              ${preset}
-                            </button>
-                          ))}
-                        </div>
+                    <label className="border-2 border-dashed border-brand-outline/30 hover:border-brand-primary/60 bg-brand-secondary/20 hover:bg-brand-primary/5 rounded-2xl p-6 flex flex-col items-center justify-center cursor-pointer transition-all group text-center">
+                      <div className="w-12 h-12 rounded-full bg-brand-primary/10 text-brand-primary flex items-center justify-center mb-2 group-hover:scale-110 transition-transform">
+                        <Upload className="w-6 h-6" />
                       </div>
-                    ))}
-                  </div>
-                </div>
+                      <p className="text-xs font-bold text-brand-tertiary group-hover:text-brand-primary">
+                        Cargar foto desde tu dispositivo u ordenador
+                      </p>
+                      <p className="text-[11px] text-brand-tertiary/50 mt-0.5">
+                        Haz clic para buscar en tus archivos (JPG, PNG, WEBP hasta 8MB)
+                      </p>
+                      <input
+                        type="file"
+                        accept="image/*"
+                        className="hidden"
+                        onChange={e => {
+                          const file = e.target.files?.[0];
+                          if (file) {
+                            if (file.size > 8 * 1024 * 1024) {
+                              alert('La imagen no debe superar los 8MB.');
+                              return;
+                            }
+                            const reader = new FileReader();
+                            reader.onloadend = () => {
+                              if (typeof reader.result === 'string') {
+                                setNewServiceImageUrl(reader.result);
+                              }
+                            };
+                            reader.readAsDataURL(file);
+                          }
+                        }}
+                      />
+                    </label>
 
-                <div className="flex justify-end gap-2 pt-4 border-t border-brand-outline/10">
+                    <div className="flex items-center gap-2">
+                      <span className="text-[10px] text-brand-tertiary/50 uppercase font-bold shrink-0">O ingresar por URL:</span>
+                      <input
+                        type="url"
+                        placeholder="https://ejemplo.com/imagen.jpg"
+                        value={newServiceImageUrl}
+                        onChange={e => setNewServiceImageUrl(e.target.value)}
+                        className="flex-1 bg-brand-secondary/30 px-3 py-2 rounded-xl border border-brand-outline/20 outline-none text-xs focus:border-brand-primary focus:bg-white transition-all"
+                      />
+                    </div>
+                  </div>
+                )}
+                <p className="text-[11px] text-brand-tertiary/50">
+                  Esta imagen se mostrará como portada representativa de este servicio en el catálogo.
+                </p>
+              </div>
+
+              {/* OPCIONES / MODALIDADES Y PRECIOS */}
+              <div className="space-y-4 pt-4 border-t border-brand-outline/10">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                  <div>
+                    <label className="text-xs font-bold uppercase tracking-wider text-brand-tertiary/80 block">
+                      OPCIONES / MODALIDADES
+                    </label>
+                    <p className="text-[11px] text-brand-tertiary/50">
+                      Configura variantes, precios, duración y detalles específicos de cada opción (Ej: Clásico vs Premium).
+                    </p>
+                  </div>
                   <button
                     type="button"
-                    onClick={() => setIsAddModalOpen(false)}
-                    className="px-4 py-2.5 rounded-xl border border-brand-outline/20 text-xs font-bold uppercase text-brand-tertiary/70 hover:bg-gray-50"
+                    onClick={handleAddOption}
+                    className="self-start sm:self-auto text-xs font-bold text-brand-primary bg-brand-primary/10 hover:bg-brand-primary/20 px-3.5 py-2 rounded-xl flex items-center gap-1.5 transition-colors cursor-pointer border border-brand-primary/20"
                   >
-                    Cancelar
-                  </button>
-                  <button
-                    type="submit"
-                    disabled={isSavingService}
-                    className="bg-brand-primary text-white px-5 py-2.5 rounded-xl text-xs uppercase font-bold tracking-wider flex items-center gap-2 shadow-xs hover:opacity-95"
-                  >
-                    {isSavingService ? <Loader2 className="w-4 h-4 animate-spin" /> : <Check className="w-4 h-4" />}
-                    {editingServiceId ? 'Guardar Cambios' : 'Guardar Servicio'}
+                    <Plus className="w-3.5 h-3.5" /> Agregar Modalidad
                   </button>
                 </div>
-              </form>
-            )}
-          </div>
+
+                <div className="space-y-4">
+                  {newServiceOptions.map((opt, idx) => (
+                    <div key={opt.id || idx} className="p-4 bg-brand-secondary/30 rounded-2xl border border-brand-outline/15 space-y-3 shadow-2xs">
+                      {/* Fila 1: Nombre de modalidad, Precio, Duración y Eliminar */}
+                      <div className="flex flex-wrap sm:flex-nowrap items-center gap-3">
+                        <div className="flex-1 min-w-[140px]">
+                          <span className="text-[10px] font-bold text-brand-tertiary/60 uppercase block mb-1">
+                            Modalidad / Variante *
+                          </span>
+                          <input
+                            type="text"
+                            required
+                            placeholder="Ej: Clásico, Premium, VIP..."
+                            value={opt.name}
+                            onChange={e => handleUpdateOption(idx, 'name', e.target.value)}
+                            className="w-full bg-white p-2.5 rounded-xl border border-brand-outline/20 text-xs font-bold outline-none focus:border-brand-primary shadow-2xs"
+                          />
+                        </div>
+
+                        <div className="w-32">
+                          <span className="text-[10px] font-bold text-brand-tertiary/60 uppercase block mb-1">
+                            Precio ($) *
+                          </span>
+                          <div className="flex items-center gap-1 bg-white px-3 py-2 rounded-xl border border-brand-outline/20 focus-within:border-brand-primary shadow-2xs">
+                            <span className="text-xs font-bold text-brand-primary">$</span>
+                            <input
+                              type="text"
+                              inputMode="decimal"
+                              required
+                              placeholder="25"
+                              value={opt.price}
+                              onChange={e => handleUpdateOption(idx, 'price', e.target.value)}
+                              className="w-full bg-transparent text-xs font-bold outline-none text-brand-tertiary"
+                            />
+                          </div>
+                        </div>
+
+                        <div className="w-32">
+                          <span className="text-[10px] font-bold text-brand-tertiary/60 uppercase block mb-1">
+                            Duración
+                          </span>
+                          <input
+                            type="text"
+                            placeholder="45 min"
+                            value={opt.duration || ''}
+                            onChange={e => handleUpdateOption(idx, 'duration', e.target.value)}
+                            className="w-full bg-white p-2.5 rounded-xl border border-brand-outline/20 text-xs font-medium outline-none focus:border-brand-primary shadow-2xs"
+                          />
+                        </div>
+
+                        {newServiceOptions.length > 1 && (
+                          <button
+                            type="button"
+                            onClick={() => handleRemoveOption(idx)}
+                            className="p-2.5 mt-4 text-red-400 hover:text-red-600 rounded-xl hover:bg-red-50 transition-colors border border-transparent hover:border-red-100 cursor-pointer"
+                            title="Eliminar modalidad"
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </button>
+                        )}
+                      </div>
+
+                      {/* Fila 2: Descripción específica de la modalidad */}
+                      <div>
+                        <label className="text-[10px] font-bold text-brand-tertiary/60 uppercase block mb-1">
+                          Descripción propia de la modalidad: {opt.name || 'Opción'}
+                        </label>
+                        <textarea
+                          rows={2}
+                          placeholder={`Describe los detalles específicos para la opción ${opt.name || ''}...`}
+                          value={opt.description || ''}
+                          onChange={e => handleUpdateOption(idx, 'description', e.target.value)}
+                          className="w-full bg-white p-2.5 rounded-xl border border-brand-outline/20 text-xs outline-none focus:border-brand-primary resize-none shadow-2xs"
+                        />
+                      </div>
+
+                      {/* Fila 3: Lo que incluye */}
+                      <div>
+                        <label className="text-[10px] font-bold text-brand-tertiary/60 uppercase block mb-1">
+                          ¿Qué incluye {opt.name || 'esta modalidad'}? (Separados por coma)
+                        </label>
+                        <input
+                          type="text"
+                          placeholder="Ej: Limpieza profunda, Nivelación Rubber, Esmaltado monocolor, Masaje"
+                          value={opt.includes || ''}
+                          onChange={e => handleUpdateOption(idx, 'includes', e.target.value)}
+                          className="w-full bg-white p-2.5 rounded-xl border border-brand-outline/20 text-xs outline-none focus:border-brand-primary shadow-2xs"
+                        />
+                      </div>
+
+                      {/* Botones de precios rápidos */}
+                      <div className="flex items-center gap-1.5 pt-1.5 border-t border-brand-outline/10">
+                        <span className="text-[10px] text-brand-tertiary/50 font-medium">Precios rápidos:</span>
+                        {['15', '25', '35', '50', '75', '100'].map(preset => (
+                          <button
+                            key={preset}
+                            type="button"
+                            onClick={() => handleUpdateOption(idx, 'price', preset)}
+                            className="text-[10px] px-2.5 py-0.5 rounded-md bg-white hover:bg-brand-primary/10 border border-brand-outline/15 text-brand-tertiary/70 hover:text-brand-primary font-bold transition-colors shadow-2xs cursor-pointer"
+                          >
+                            ${preset}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              {/* Botones de Acción: Cancelar y Guardar */}
+              <div className="flex flex-col-reverse sm:flex-row items-center justify-end gap-3 pt-6 border-t border-brand-outline/10">
+                <button
+                  type="button"
+                  onClick={() => setIsAddModalOpen(false)}
+                  className="w-full sm:w-auto px-6 py-3 rounded-xl border border-brand-outline/20 text-xs font-bold uppercase text-brand-tertiary/70 hover:bg-gray-50 transition-colors cursor-pointer"
+                >
+                  Cancelar
+                </button>
+                <button
+                  type="submit"
+                  disabled={isSavingService}
+                  className="w-full sm:w-auto bg-brand-primary text-white px-8 py-3 rounded-xl text-xs uppercase font-bold tracking-wider flex items-center justify-center gap-2 shadow-sm hover:opacity-95 transition-all disabled:opacity-50 cursor-pointer"
+                >
+                  {isSavingService ? <Loader2 className="w-4 h-4 animate-spin" /> : <Check className="w-4 h-4" />}
+                  {editingServiceId ? 'Guardar Cambios' : 'Guardar Servicio'}
+                </button>
+              </div>
+            </form>
+          )}
         </div>
-      )}
+      </div>
+    );
+  }
+
+  // VISTA 2: Listado del Catálogo de Servicios con Drag & Drop
+  return (
+    <div className="pb-20">
+      <div className="flex justify-between items-center mb-8">
+        <div>
+          <h2 className="text-3xl font-serif italic mb-2">Gestor de Servicios</h2>
+          <p className="text-brand-tertiary/60">Agrega, edita y arrastra para reordenar tus servicios.</p>
+        </div>
+        <button
+          onClick={openAddModal}
+          className="bg-brand-primary text-white px-5 py-3 flex items-center gap-2 rounded-xl text-xs uppercase font-bold tracking-widest shadow-sm hover:opacity-95 transition-all active:scale-95 cursor-pointer"
+        >
+          <Plus className="w-4 h-4" /> Agregar Servicio
+        </button>
+      </div>
+
+      <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
+        <SortableContext items={services} strategy={verticalListSortingStrategy}>
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+            {services.map(service => (
+              <SortableServiceItem
+                key={service.id}
+                service={service}
+                onEdit={openEditModal}
+                onDelete={handleDeleteService}
+              />
+            ))}
+          </div>
+        </SortableContext>
+      </DndContext>
     </div>
   );
 }
