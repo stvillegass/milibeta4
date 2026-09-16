@@ -33,8 +33,8 @@ export const LIMITS = {
   maxPrice: 100_000,
   minDurationMinutes: 5,
   maxDurationMinutes: 600,
-  /** Tolerancia hacia atrás para la hora de inicio (reservas recién creadas). */
-  startTimeToleranceMs: 10 * 60_000,
+  /** Tolerancia hacia atrás para la hora de inicio (desfase de reloj / turnos recién iniciados). */
+  startTimeToleranceMs: 30 * 60_000,
   maxFutureMs: 365 * 24 * 60 * 60_000,
 } as const;
 
@@ -233,22 +233,29 @@ export function validateBookingPayload(payload: unknown): BookingValidation {
         const item = raw as Record<string, unknown>;
         const serviceName = sanitizeText(item.service_name, LIMITS.nameMax);
         const optionName = sanitizeText(item.option_name, LIMITS.nameMax);
-        const price = parseNumberInRange(item.price, 0, LIMITS.maxPrice);
-        const duration = parseNumberInRange(
-          item.duration_minutes,
-          0,
-          LIMITS.maxDurationMinutes
-        );
+        // Precio/duración del adicional: opcionales. Si faltan se asumen 0;
+        // solo se rechaza si el valor presente no es un número finito válido.
+        const hasPrice = item.price !== undefined && item.price !== null && item.price !== "";
+        const priceParsed = hasPrice ? parseNumberInRange(item.price, 0, LIMITS.maxPrice) : 0;
+        const price = priceParsed === null ? 0 : priceParsed;
+        const hasDuration =
+          item.duration_minutes !== undefined &&
+          item.duration_minutes !== null &&
+          item.duration_minutes !== "";
+        const durationParsed = hasDuration
+          ? parseNumberInRange(item.duration_minutes, 0, LIMITS.maxDurationMinutes)
+          : 0;
+        const duration = durationParsed === null ? 0 : durationParsed;
 
         if (!serviceName) {
           errors.push(`El servicio adicional #${idx + 1} no tiene un nombre válido`);
           return;
         }
-        if (price === null) {
+        if (hasPrice && priceParsed === null) {
           errors.push(`El precio del servicio adicional #${idx + 1} no es válido`);
           return;
         }
-        if (duration === null) {
+        if (hasDuration && durationParsed === null) {
           errors.push(`La duración del servicio adicional #${idx + 1} no es válida`);
           return;
         }
@@ -264,19 +271,20 @@ export function validateBookingPayload(payload: unknown): BookingValidation {
     }
   }
 
-  // ── Totales ─
+  // ── Totales ──
   const calculatedExtras = combo_services.reduce((sum, c) => sum + c.price, 0);
   const totalPriceRaw = parseNumberInRange(body.total_price, 0, LIMITS.maxPrice);
   if (body.total_price !== undefined && totalPriceRaw === null)
     errors.push("El precio total no es válido");
 
+  // La duración total es un dato derivable: si llega un valor inválido (o no
+  // llega) NO se rechaza la reserva; se deduce de end_time - start_time, o se
+  // usa 60 min por defecto. Siempre acotada a [min, max].
   const durationRaw = parseNumberInRange(
     body.duration_minutes,
     LIMITS.minDurationMinutes,
     LIMITS.maxDurationMinutes
   );
-  if (body.duration_minutes !== undefined && durationRaw === null)
-    errors.push("La duración total no es válida");
 
   // ── Textos informativos (solo para WhatsApp) ──
   const fecha = sanitizeText(body.fecha, 60);
@@ -284,6 +292,19 @@ export function validateBookingPayload(payload: unknown): BookingValidation {
 
   if (errors.length > 0) return { ok: false, errors };
   if (!phone.ok || !startDate) return { ok: false, errors: ["Datos de reserva inválidos"] };
+
+  // Duración total: valor saneado → derivado de fechas → 60 min por defecto.
+  const derivedFromDates =
+    endDate && endDate.getTime() > startDate.getTime()
+      ? Math.round((endDate.getTime() - startDate.getTime()) / 60_000)
+      : null;
+  const clampedDuration = Math.min(
+    LIMITS.maxDurationMinutes,
+    Math.max(
+      LIMITS.minDurationMinutes,
+      durationRaw ?? derivedFromDates ?? 60
+    )
+  );
 
   return {
     ok: true,
@@ -299,7 +320,7 @@ export function validateBookingPayload(payload: unknown): BookingValidation {
       status: requestedStatus as (typeof PUBLIC_BOOKING_STATUSES)[number],
       combo_services,
       total_price: totalPriceRaw === null ? calculatedExtras : totalPriceRaw,
-      duration_minutes: durationRaw ?? LIMITS.minDurationMinutes,
+      duration_minutes: clampedDuration,
       fecha,
       hora,
     },

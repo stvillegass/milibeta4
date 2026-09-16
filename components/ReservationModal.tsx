@@ -36,6 +36,7 @@ import {
   Clock,
   MessageCircle,
   Sparkles,
+  Info,
   AlertCircle,
   MapPin,
   Navigation,
@@ -152,6 +153,8 @@ export default function ReservationModal({
   const [extraServices, setExtraServices] = useState<ComboServiceItem[]>([]);
   const [isComboOpen, setIsComboOpen] = useState(false);
   const [comboPick, setComboPick] = useState<Service | null>(null);
+  // Panel flotante con las descripciones de las modalidades (doble clic / info)
+  const [isDescriptionsOpen, setIsDescriptionsOpen] = useState(false);
 
   useEffect(() => {
     // ── 1. Obtener el valor inicial de premium_enabled ───────────────────
@@ -518,7 +521,9 @@ export default function ReservationModal({
       startTime.setHours(hours, minutes, 0, 0);
 
       const durationStr = option.duration || "60";
-      const primaryDurationMinutes = parseInt(durationStr) || 60;
+      // Clamp de seguridad: si el texto de duración parsea a un valor absurdo
+      // (p.ej. "1h" → 1, "0" → 0), se usa un mínimo de 15 minutos por servicio.
+      const primaryDurationMinutes = Math.max(15, parseInt(durationStr) || 60);
       // Duración total = servicio principal + servicios adicionales combinados
       const extrasDurationMinutes = extraServices.reduce((sum, x) => sum + x.durationMin, 0);
       const durationMinutes = primaryDurationMinutes + extrasDurationMinutes;
@@ -590,7 +595,18 @@ export default function ReservationModal({
       const data = bookingResult?.data;
 
       if (!bookingResponse.ok || !data) {
-        alert("Ocurrió un error al procesar la reserva: " + (bookingResult?.error || "Error desconocido"));
+        const serverDetails = Array.isArray(bookingResult?.details)
+          ? bookingResult.details.join(" · ")
+          : "";
+        console.error("[Reserva] Rechazada por el servidor:", {
+          status: bookingResponse.status,
+          error: bookingResult?.error,
+          details: bookingResult?.details,
+        });
+        alert(
+          "Ocurrió un error al procesar la reserva: " +
+            (serverDetails || bookingResult?.error || "Error desconocido")
+        );
         const { data: occData } = await supabase.rpc("get_occupied_slots");
         if (occData) setBookings(occData);
         return;
@@ -806,7 +822,8 @@ export default function ReservationModal({
                             <button
                               key={opt.id}
                               onClick={() => setOption(opt)}
-                              className={`p-2 sm:p-2.5 rounded-xl text-left border transition-all duration-200 flex justify-between items-center ${
+                              onDoubleClick={() => setIsDescriptionsOpen(true)}
+                              className={`p-2 sm:p-2.5 rounded-xl text-left border transition-all duration-200 flex justify-between items-center relative ${
                                 option?.id === opt.id
                                   ? "bg-brand-primary/5 border-brand-primary shadow-2xs ring-1 ring-brand-primary"
                                   : "bg-white border-brand-outline/10 text-brand-tertiary/70 hover:border-brand-primary/40"
@@ -817,9 +834,33 @@ export default function ReservationModal({
                                 <span className="text-[10px] text-brand-tertiary/60">⏱️ {opt.duration || "60 min"}</span>
                               </div>
                               <span className="font-bold text-sm text-brand-primary">€{opt.price}</span>
+                              {/* Botón de descripciones: no interfiere con la selección */}
+                              <span
+                                role="button"
+                                tabIndex={0}
+                                title="Ver descripciones"
+                                aria-label="Ver descripciones de las modalidades"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setIsDescriptionsOpen(true);
+                                }}
+                                onDoubleClick={(e) => e.stopPropagation()}
+                                onKeyDown={(e) => {
+                                  if (e.key === "Enter" || e.key === " ") {
+                                    e.stopPropagation();
+                                    setIsDescriptionsOpen(true);
+                                  }
+                                }}
+                                className="absolute top-1 right-1 p-0.5 rounded-full text-brand-tertiary/30 hover:text-brand-primary transition-colors"
+                              >
+                                <Info className="w-3.5 h-3.5" />
+                              </span>
                             </button>
                           ))}
                         </div>
+                        <p className="text-[9px] text-brand-tertiary/40 text-center mt-1.5">
+                          Doble clic (o toca el icono ⓘ) para ver qué incluye cada modalidad
+                        </p>
                       </div>
                     );
                   })()}
@@ -1409,8 +1450,19 @@ export default function ReservationModal({
 
                 const activeSlots: string[] = scheduleConfig?.weeklySchedule?.[dayOfWeek]?.slots || defaultTimes;
 
-                // ── FILTRADO ESTRICTO: REMOVER HORARIOS OCUPADOS ──
-                const availableSlots = activeSlots.filter((time) => !isTimeBooked(dateStr, time));
+                // ── FILTRADO ESTRICTO: REMOVER HORARIOS OCUPADOS Y HORAS YA PASADAS ──
+                const now = new Date();
+                const isToday = format(now, "yyyy-MM-dd") === dateStr;
+                const availableSlots = activeSlots.filter((time) => {
+                  if (isTimeBooked(dateStr, time)) return false;
+                  // Si es hoy, ocultar los turnos cuya hora ya pasó
+                  if (isToday) {
+                    const [h, m] = time.split(":").map(Number);
+                    const slotDate = new Date(now.getFullYear(), now.getMonth(), now.getDate(), h, m || 0);
+                    if (slotDate.getTime() <= now.getTime()) return false;
+                  }
+                  return true;
+                });
 
                 if (activeSlots.length === 0 || availableSlots.length === 0) {
                   return (
@@ -1468,6 +1520,94 @@ export default function ReservationModal({
                   Confirmar
                 </button>
               </div>
+            </div>
+          </div>
+        )}
+
+        {isDescriptionsOpen && service && (
+          <div
+            className="absolute inset-0 z-50 bg-black/75 backdrop-blur-xs flex items-end sm:items-center justify-center p-2 sm:p-4 animate-in fade-in"
+            onClick={() => setIsDescriptionsOpen(false)}
+          >
+            <div
+              className="bg-white w-full max-w-sm rounded-2xl p-5 shadow-xl border border-brand-outline/10 space-y-4 animate-in slide-in-from-bottom-5 max-h-[85%] overflow-y-auto"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className="flex items-start justify-between gap-2 border-b border-brand-outline/10 pb-3">
+                <div>
+                  <span className="text-[10px] font-bold uppercase tracking-widest text-brand-primary flex items-center gap-1.5">
+                    <Sparkles className="w-3.5 h-3.5" /> Qué incluye cada modalidad
+                  </span>
+                  <h4 className="font-serif italic text-base font-medium text-brand-tertiary mt-0.5">
+                    {service.name}
+                  </h4>
+                </div>
+                <button
+                  onClick={() => setIsDescriptionsOpen(false)}
+                  className="p-1.5 text-brand-tertiary/50 hover:text-brand-tertiary rounded-full hover:bg-brand-secondary transition-colors shrink-0"
+                  aria-label="Cerrar descripciones"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                {service.options
+                  .filter(
+                    (o) => isPremiumEnabled || !o.name.toLowerCase().includes("premium")
+                  )
+                  .map((opt) => {
+                    const isSelected = option?.id === opt.id;
+                    const description =
+                      opt.description && opt.description.trim().length > 0
+                        ? opt.description.trim()
+                        : "Detalles de esta modalidad disponibles en el studio. Pregunta por su contenido al reservar.";
+                    return (
+                      <div
+                        key={opt.id}
+                        className={`rounded-xl p-3 border space-y-1.5 ${
+                          isSelected
+                            ? "border-brand-primary bg-brand-primary/5"
+                            : "border-brand-outline/20 bg-brand-secondary/40"
+                        }`}
+                      >
+                        <div className="flex items-center justify-between gap-2">
+                          <span className="font-serif italic font-medium text-sm text-brand-tertiary">
+                            {opt.name}
+                          </span>
+                          {String(opt.name || "").toLowerCase().includes("premium") && (
+                            <span className="text-[9px] font-bold uppercase tracking-wider text-brand-primary bg-brand-primary/10 border border-brand-primary/20 px-1.5 py-0.5 rounded-full shrink-0">
+                              Premium
+                            </span>
+                          )}
+                        </div>
+                        <div className="flex items-center gap-2 text-[10px] text-brand-tertiary/60">
+                          <span>⏱️ {opt.duration || "60 min"}</span>
+                          <span className="font-bold text-brand-primary">€{opt.price}</span>
+                        </div>
+                        <p className="text-[11px] text-brand-tertiary/75 leading-relaxed">
+                          {description}
+                        </p>
+                        <button
+                          onClick={() => {
+                            setOption(opt);
+                            setIsDescriptionsOpen(false);
+                          }}
+                          className="text-[10px] font-bold text-brand-primary hover:text-brand-primary-light transition-colors"
+                        >
+                          {isSelected ? "Seleccionada ✓" : "Seleccionar esta modalidad →"}
+                        </button>
+                      </div>
+                    );
+                  })}
+              </div>
+
+              <button
+                onClick={() => setIsDescriptionsOpen(false)}
+                className="w-full py-2.5 bg-brand-secondary text-brand-tertiary rounded-xl font-bold text-xs uppercase tracking-wider hover:bg-brand-secondary-dark transition-colors"
+              >
+                Entendido
+              </button>
             </div>
           </div>
         )}
