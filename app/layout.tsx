@@ -10,6 +10,28 @@ export const metadata: Metadata = {
     icon: "/icono.png",
     apple: "/icono.png",
   },
+  openGraph: {
+    title: "Milibeauty Luxury Studio",
+    description: "Estudio de lujo especializado en el cuidado y diseño de tus manos y mirada.",
+    url: "https://milibeauty.vercel.app",
+    siteName: "Milibeauty",
+    images: [
+      {
+        url: "/icono.png",
+        width: 800,
+        height: 800,
+        alt: "Milibeauty Logo",
+      },
+    ],
+    locale: "es_ES",
+    type: "website",
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: "Milibeauty Luxury Studio",
+    description: "Estudio de lujo especializado en el cuidado y diseño de tus manos y mirada.",
+    images: ["/icono.png"],
+  },
 };
 
 export default function RootLayout({
