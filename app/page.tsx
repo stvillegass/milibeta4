@@ -188,19 +188,6 @@ export default function HomePage() {
         </Link>
       </div>
 
-      {/* BOTÓN TEMPORAL DE PRUEBA DE SENTRY — eliminar tras verificar */}
-      <div className="text-center pb-6">
-        <button
-          type="button"
-          onClick={() => {
-            throw new Error("Sentry Test Error from Milibeauty");
-          }}
-          className="px-4 py-2 text-xs rounded-full border border-red-300 text-red-500 hover:bg-red-50 transition-colors"
-        >
-          Probar Sentry (error de prueba)
-        </button>
-      </div>
-
       <footer className="text-center py-10 text-xs text-brand-tertiary/40 tracking-wider">
         <p>© 2026 MILIBEAUTY LUXURY STUDIO</p>
         <div className="flex justify-center gap-6 mt-3 text-brand-tertiary/60 font-light">
