@@ -1,4 +1,5 @@
 import type { NextConfig } from "next";
+import { withSentryConfig } from "@sentry/nextjs";
 
 /**
  * Cabeceras de seguridad HTTP aplicadas a todas las respuestas.
@@ -44,4 +45,20 @@ const nextConfig: NextConfig = {
   },
 };
 
-export default nextConfig;
+export default withSentryConfig(nextConfig, {
+  // Suprime los logs del build de Sentry a menos que se force
+  silent: true,
+  // Desactiva la telemetría del asistente de Sentry en el build
+  telemetry: false,
+  // Sube source maps solo si se configura el auth token y el org/project
+  sourcemaps: {
+    disable: !process.env.SENTRY_AUTH_TOKEN,
+  },
+  // Evita que Sentry sobrescriba variables de entorno del build si no existen
+  disableLogger: true,
+  // Auto-instrumentación de componentes del servidor
+  reactComponentAnnotation: {
+    enabled: false,
+  },
+  tunnelRoute: "/monitoring",
+});
