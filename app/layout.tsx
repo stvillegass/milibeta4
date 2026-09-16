@@ -6,6 +6,10 @@ import { AuthProvider } from "@/lib/AuthProvider";
 export const metadata: Metadata = {
   title: "Milibeauty Luxury Studio",
   description: "Estudio de lujo especializado en el cuidado y diseño de tus manos y mirada.",
+  icons: {
+    icon: "/icono.png",
+    apple: "/icono.png",
+  },
 };
 
 export default function RootLayout({
